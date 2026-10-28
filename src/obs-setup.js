@@ -6,6 +6,9 @@
 // profiles/collections; it never edits the user's existing ones.
 
 const PROFILE = 'TikTok Vertical';
+// The window/screen capture. Not "Screen": OBS sources and scenes share one
+// namespace, and there's a scene called Screen.
+const CAPTURE = 'Game Window';
 const COLLECTION = 'TikTok Vertical';
 const W = 1080;
 const H = 1920;
@@ -81,14 +84,14 @@ function sceneLayouts({ overlays, capture, handle, robot = false }) {
     ],
     'Screen + Camera': [
       ['Background', FULL],
-      ...(capture ? [['Screen', slot(HOLES.sc_screen)], ['Webcam', slot(HOLES.sc_cam)]] : []),
+      ...(capture ? [[CAPTURE, slot(HOLES.sc_screen)], ['Webcam', slot(HOLES.sc_cam)]] : []),
       ...(overlays ? [['Frame: Screen + Camera', FULL]] : []),
       ...at(1300),
     ],
     ...(robot ? {
       'Screen + Robot': [
         ['Background', FULL],
-        ...(capture ? [['Screen', slot(HOLES.sr_screen)]] : []),
+        ...(capture ? [[CAPTURE, slot(HOLES.sr_screen)]] : []),
         // Above the overlay: the overlay is opaque outside its game window.
         ...(overlays ? [['Frame: Screen + Robot', FULL]] : []),
         ['Robot (full)', { positionX: ROBOT_FULL.x, positionY: ROBOT_FULL.y, alignment: ALIGN_TOP_LEFT }],
@@ -97,7 +100,7 @@ function sceneLayouts({ overlays, capture, handle, robot = false }) {
     } : {}),
     Screen: [
       ['Background', FULL],
-      ...(capture ? [['Screen', slot(HOLES.screen)]] : []),
+      ...(capture ? [[CAPTURE, slot(HOLES.screen)]] : []),
       ...(overlays ? [['Frame: Screen', FULL]] : []),
       ...at(1240),
     ],
@@ -195,7 +198,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
       },
     },
     Webcam: { kind: 'v4l2_input', settings: {} },
-    Screen: { kind: captureKind, settings: { ShowCursor: true } },
+    [CAPTURE]: { kind: captureKind, settings: { ShowCursor: true } },
     'Title: Starting': { kind: 'text_ft2_source_v2', settings: textSettings('STARTING SOON') },
     'Subtitle: Starting': { kind: 'text_ft2_source_v2', settings: textSettings('LIVE in a moment', { face: 'Montserrat Medium', size: 44 }) },
     'Title: BRB': { kind: 'text_ft2_source_v2', settings: textSettings('BE RIGHT BACK') },
@@ -264,7 +267,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
   let added = 0;
   for (const sceneName of sceneNames) {
     for (const [sourceName, transform] of layouts[sceneName]) {
-      if (sourceName === 'Screen') continue;
+      if (sourceName === CAPTURE) continue;
       if (await place(sceneName, sourceName, transform)) added += 1;
     }
     for (const a of audio) if (await place(sceneName, a, null)) added += 1;
@@ -276,11 +279,11 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
     say('pick the game window (or screen) to share in the GNOME dialog');
     try {
       for (const sceneName of sceneNames) {
-        const entry = layouts[sceneName].find(([n]) => n === 'Screen');
-        if (entry && (await place(sceneName, 'Screen', entry[1], 90000))) added += 1;
+        const entry = layouts[sceneName].find(([n]) => n === CAPTURE);
+        if (entry && (await place(sceneName, CAPTURE, entry[1], 90000))) added += 1;
       }
     } catch (e) {
-      warnings.push(`screen capture wasn't added (${e.message}); in OBS add a "Window Capture (PipeWire)" source named Screen`);
+      warnings.push(`game capture wasn't added (${e.message}); in OBS add a "Window Capture (PipeWire)" source named "${CAPTURE}"`);
     }
   } else if (capture) {
     warnings.push('this OBS has no PipeWire capture source');
@@ -454,4 +457,4 @@ async function setRobotAvatar(obs, { enabled, url, log = () => {} }) {
   return { scenes: slots.map((s) => s.scene) };
 }
 
-module.exports = { setupTikTok, setRobotAvatar, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, HOLES, ROBOT_SLOTS };
+module.exports = { setupTikTok, setRobotAvatar, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, CAPTURE, HOLES, ROBOT_SLOTS };

@@ -109,14 +109,14 @@ test('setup creates the profile, reloads it, and builds every scene in layer ord
 
   const inputs = obs.calls.filter((c) => c[0] === 'CreateInput').map(([, d]) => d.inputName);
   assert.equal(new Set(inputs).size, inputs.length, 'each source is created once and reused');
-  assert.equal(inputs.at(-1), 'Screen', 'screen capture is created last');
-  const screen = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Screen');
+  assert.equal(inputs.at(-1), 'Game Window', 'game capture is created last');
+  const screen = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Game Window');
   assert.equal(screen[1].inputKind, 'pipewire-window-capture-source');
   assert.equal(screen[2].timeoutMs, 90000, 'the GNOME picker gets time to answer');
   assert.equal(obs.st.inputs.get('Background'), 'image_source');
   assert.ok(obs.calls.some((c) => c[0] === 'SetInputSettings' && c[1].inputSettings.device_id === '/dev/video0'));
 
-  assert.deepEqual(order(obs, 'Screen + Camera').slice(0, 5), ['Background', 'Screen', 'Webcam', 'Frame: Screen + Camera', 'Handle']);
+  assert.deepEqual(order(obs, 'Screen + Camera').slice(0, 5), ['Background', 'Game Window', 'Webcam', 'Frame: Screen + Camera', 'Handle']);
   for (const scene of obs.st.scenes.keys()) {
     assert.ok(order(obs, scene).includes('Mic') && order(obs, scene).includes('Desktop Audio'), `audio in ${scene}`);
   }
@@ -138,7 +138,7 @@ test('re-running repairs a half-built collection without touching user items', a
   assert.equal(obs.st.inputs.get('Background'), 'image_source', 'plain background swapped for the artwork');
   assert.ok(!obs.st.inputs.has('Background (old)'));
   const sc = order(obs, 'Screen + Camera');
-  assert.deepEqual(sc.slice(0, 5), ['Background', 'Screen', 'Webcam', 'Frame: Screen + Camera', 'Handle']);
+  assert.deepEqual(sc.slice(0, 5), ['Background', 'Game Window', 'Webcam', 'Frame: Screen + Camera', 'Handle']);
   assert.ok(sc.includes('My Overlay'), 'user source kept');
   assert.ok(sc.indexOf('My Overlay') > sc.indexOf('Handle'), 'user source stays above ours');
   assert.ok(!obs.st.scenes.has('Scene'));
@@ -160,7 +160,7 @@ test('a screen capture that never answers is a warning, not a failure', async ()
   const obs = fakeObs();
   const orig = obs.call;
   obs.call = async (type, data, opts) => {
-    if (type === 'CreateInput' && data.inputName === 'Screen') throw new Error('OBS CreateInput timed out');
+    if (type === 'CreateInput' && data.inputName === 'Game Window') throw new Error('OBS CreateInput timed out');
     return orig(type, data, opts);
   };
   const res = await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a' });
@@ -172,7 +172,7 @@ test('with the avatar URL, Screen + Robot puts the game on top and the full robo
   const obs = fakeObs();
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar' });
   assert.ok(obs.st.scenes.has('Screen + Robot'));
-  assert.deepEqual(order(obs, 'Screen + Robot').slice(0, 5), ['Background', 'Screen', 'Frame: Screen + Robot', 'Robot (full)', 'Handle']);
+  assert.deepEqual(order(obs, 'Screen + Robot').slice(0, 5), ['Background', 'Game Window', 'Frame: Screen + Robot', 'Robot (full)', 'Handle']);
   const robot = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Robot (full)')[1];
   assert.equal(robot.inputKind, 'browser_source');
   assert.equal(robot.inputSettings.url, 'http://127.0.0.1:47812/avatar');
@@ -195,18 +195,25 @@ test('setup refuses to run while OBS is streaming', async () => {
   await assert.rejects(setupTikTok(obs, {}), /Stop streaming/);
 });
 
-test('a hand-added Screen at the default spot gets our layout; moved items are left alone', async () => {
+test('a hand-added Game Window at the default spot gets our layout; moved items are left alone', async () => {
   const obs = fakeObs({ profiles: ['Untitled', 'TikTok Vertical'], collections: ['Untitled', 'TikTok Vertical'] });
   const fresh = { positionX: 0, positionY: 0, scaleX: 1, scaleY: 1, rotation: 0, boundsType: 'OBS_BOUNDS_NONE' };
-  obs.st.scenes.set('Screen + Camera', [{ sourceName: 'Screen', sceneItemId: 700, sceneItemTransform: fresh }]);
+  obs.st.scenes.set('Screen + Camera', [{ sourceName: 'Game Window', sceneItemId: 700, sceneItemTransform: fresh }]);
   obs.st.scenes.set('Camera', [{ sourceName: 'Webcam', sceneItemId: 701,
     sceneItemTransform: { ...fresh, positionX: 300, positionY: 900 } }]);
-  obs.st.inputs.set('Screen', 'pipewire-screen-capture-source');
+  obs.st.inputs.set('Game Window', 'pipewire-screen-capture-source');
   obs.st.inputs.set('Webcam', 'v4l2_input');
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a' });
   const t = (id) => obs.calls.filter((c) => c[0] === 'SetSceneItemTransform' && c[1].sceneItemId === id);
-  assert.equal(t(700).length, 1, 'default-placed Screen is laid out');
+  assert.equal(t(700).length, 1, 'default-placed Game Window is laid out');
   assert.equal(t(700)[0][1].sceneItemTransform.boundsType, 'OBS_BOUNDS_SCALE_OUTER');
   assert.equal(t(701).length, 0, 'moved Webcam is not touched');
-  assert.ok(order(obs, 'Screen').includes('Screen'), 'existing Screen input is added to the other scene');
+  assert.ok(order(obs, 'Screen').includes('Game Window'), 'existing capture is added to the other scene');
+});
+
+test('no source shares a name with a scene (OBS refuses duplicates across both)', async () => {
+  const obs = fakeObs();
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar' });
+  const scenes = new Set(obs.st.scenes.keys());
+  for (const name of obs.st.inputs.keys()) assert.ok(!scenes.has(name), `source "${name}" collides with a scene`);
 });
