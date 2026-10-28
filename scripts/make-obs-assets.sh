@@ -33,4 +33,5 @@ overlay() {
 overlay overlay-camera.png        "60 210 960 1280 52"
 overlay overlay-screen-camera.png "150 170 780 439 40" "30 650 1020 574 36"
 overlay overlay-screen.png        "20 560 1040 585 36"
+overlay overlay-screen-robot.png  "20 170 1040 585 36"
 ls -la

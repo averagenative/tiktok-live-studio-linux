@@ -87,6 +87,9 @@ function frame(now) {
   const tilt = Math.sin(t * 0.9) * 1.4 + L * 1.5 * Math.sin(t * 6.3);
   $('head').setAttribute('transform', `translate(0 ${bob.toFixed(2)}) rotate(${tilt.toFixed(2)} 480 470)`);
   $('torso').setAttribute('transform', `translate(0 ${(bob * 0.35).toFixed(2)})`);
+  const sway = Math.sin(t * 1.1) * 1.5 + L * 5 * Math.sin(t * 4.7);
+  $('armL').setAttribute('transform', `rotate(${(sway + 2).toFixed(2)} 150 880)`);
+  $('armR').setAttribute('transform', `rotate(${(-sway - 2).toFixed(2)} 810 880)`);
 
   // Eyes: random blinks, a happy squint when loud.
   if (blinkStart < 0 && now > nextBlink) blinkStart = now;

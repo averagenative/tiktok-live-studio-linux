@@ -168,6 +168,27 @@ test('a screen capture that never answers is a warning, not a failure', async ()
   assert.ok(!obs.st.scenes.has('Scene'), 'the rest of the setup still finished');
 });
 
+test('with the avatar URL, Screen + Robot puts the game on top and the full robot below', async () => {
+  const obs = fakeObs();
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar' });
+  assert.ok(obs.st.scenes.has('Screen + Robot'));
+  assert.deepEqual(order(obs, 'Screen + Robot').slice(0, 5), ['Background', 'Screen', 'Frame: Screen + Robot', 'Robot (full)', 'Handle']);
+  const robot = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Robot (full)')[1];
+  assert.equal(robot.inputKind, 'browser_source');
+  assert.equal(robot.inputSettings.url, 'http://127.0.0.1:47812/avatar');
+  assert.equal(robot.inputSettings.width, 1080);
+  assert.equal(robot.inputSettings.height, 1130);
+  const t = obs.calls.find((c) => c[0] === 'SetSceneItemTransform' && c[1].sceneName === 'Screen + Robot'
+    && c[1].sceneItemTransform.positionY === 790);
+  assert.ok(t, 'robot sits under the game window');
+});
+
+test('without the avatar URL there is no robot scene', async () => {
+  const obs = fakeObs();
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a' });
+  assert.ok(!obs.st.scenes.has('Screen + Robot'));
+});
+
 test('setup refuses to run while OBS is streaming', async () => {
   const obs = fakeObs();
   obs.call = async (type) => (type === 'GetStreamStatus' ? { outputActive: true } : {});

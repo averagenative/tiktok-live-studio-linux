@@ -306,6 +306,7 @@ ipcMain.handle('obs:setup', wrap(async () => {
   const result = await setupTikTok(obs, {
     handle: account?.username || '',
     assetsDir: local ? exportObsAssets() : null,
+    avatarUrl: local ? avatar.url : null,
     log,
   });
   log('obs', result.created

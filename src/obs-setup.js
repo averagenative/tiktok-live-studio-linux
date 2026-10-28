@@ -17,7 +17,14 @@ const HOLES = {
   sc_cam: { x: 150, y: 170, w: 780, h: 439 },
   sc_screen: { x: 30, y: 650, w: 1020, h: 574 },
   screen: { x: 20, y: 560, w: 1040, h: 585 },
+  sr_screen: { x: 20, y: 170, w: 1040, h: 585 },
 };
+
+// The free-standing robot under the game in "Screen + Robot".
+const ROBOT_FULL = { x: 0, y: 790, w: W, h: H - 790 };
+
+// obs-browser's default page CSS: transparent background.
+const BROWSER_CSS = 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }';
 
 // OBS colors are 0xAABBGGRR.
 const abgr = (hex) => {
@@ -62,7 +69,7 @@ const FULL = { positionX: 0, positionY: 0, alignment: ALIGN_TOP_LEFT };
 const centered = (y) => ({ positionX: W / 2, positionY: y, alignment: ALIGN_CENTER });
 
 // Scene layouts, bottom layer first. Each entry is [sourceName, transform].
-function sceneLayouts({ overlays, capture, handle }) {
+function sceneLayouts({ overlays, capture, handle, robot = false }) {
   const at = (y) => (handle ? [['Handle', centered(y)]] : []);
   return {
     'Starting Soon': [['Background', FULL], ['Title: Starting', centered(820)], ...at(990), ['Subtitle: Starting', centered(1080)]],
@@ -78,6 +85,16 @@ function sceneLayouts({ overlays, capture, handle }) {
       ...(overlays ? [['Frame: Screen + Camera', FULL]] : []),
       ...at(1300),
     ],
+    ...(robot ? {
+      'Screen + Robot': [
+        ['Background', FULL],
+        ...(capture ? [['Screen', slot(HOLES.sr_screen)]] : []),
+        // Above the overlay: the overlay is opaque outside its game window.
+        ...(overlays ? [['Frame: Screen + Robot', FULL]] : []),
+        ['Robot (full)', { positionX: ROBOT_FULL.x, positionY: ROBOT_FULL.y, alignment: ALIGN_TOP_LEFT }],
+        ...at(822),
+      ],
+    } : {}),
     Screen: [
       ['Background', FULL],
       ...(capture ? [['Screen', slot(HOLES.screen)]] : []),
@@ -92,7 +109,7 @@ function sceneLayouts({ overlays, capture, handle }) {
   };
 }
 
-async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true, fps = 30, log = () => {} } = {}) {
+async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = null, capture = true, fps = 30, log = () => {} } = {}) {
   const warnings = [];
   const say = (m) => log('obs', `setup: ${m}`);
   const at = handle ? `@${handle.replace(/^@/, '')}` : '';
@@ -149,7 +166,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
   }
 
   const overlays = !!assetsDir;
-  const layouts = sceneLayouts({ overlays, capture, handle: at });
+  const layouts = sceneLayouts({ overlays, capture, handle: at, robot: !!avatarUrl });
   const sceneNames = Object.keys(layouts);
   const { scenes: before } = await obs.call('GetSceneList');
   const haveScene = new Set(before.map((x) => x.sceneName));
@@ -169,6 +186,14 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
     'Frame: Camera': { kind: 'image_source', settings: { file: file('overlay-camera.png') } },
     'Frame: Screen + Camera': { kind: 'image_source', settings: { file: file('overlay-screen-camera.png') } },
     'Frame: Screen': { kind: 'image_source', settings: { file: file('overlay-screen.png') } },
+    'Frame: Screen + Robot': { kind: 'image_source', settings: { file: file('overlay-screen-robot.png') } },
+    'Robot (full)': {
+      kind: 'browser_source',
+      settings: {
+        url: avatarUrl, width: ROBOT_FULL.w, height: ROBOT_FULL.h, fps: 30, css: BROWSER_CSS,
+        reroute_audio: false, shutdown: false, restart_when_active: false,
+      },
+    },
     Webcam: { kind: 'v4l2_input', settings: {} },
     Screen: { kind: captureKind, settings: { ShowCursor: true } },
     'Title: Starting': { kind: 'text_ft2_source_v2', settings: textSettings('STARTING SOON') },
@@ -382,7 +407,6 @@ const ROBOT_SLOTS = [
   { scene: 'Camera', source: 'Robot', hole: HOLES.camera },
   { scene: 'Screen + Camera', source: 'Robot (wide)', hole: HOLES.sc_cam },
 ];
-const BROWSER_CSS = 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }';
 
 async function setRobotAvatar(obs, { enabled, url, log = () => {} }) {
   const say = (m) => log('obs', `robot: ${m}`);

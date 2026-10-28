@@ -58,8 +58,20 @@
   <g id="robot">
     <!-- Torso: only in view for the portrait layout. -->
     <g id="torso">
+      <g id="armL">
+        <rect x="88" y="880" width="80" height="430" rx="38" fill="url(#metalSide)" stroke="url(#rim)" stroke-width="3" stroke-opacity="0.45"/>
+        <g stroke="#0b0d12" stroke-width="5"><line x1="92" y1="1040" x2="164" y2="1040"/><line x1="92" y1="1070" x2="164" y2="1070"/></g>
+      </g>
+      <g id="armR">
+        <rect x="792" y="880" width="80" height="430" rx="38" fill="url(#metalSide)" stroke="url(#rim)" stroke-width="3" stroke-opacity="0.45"/>
+        <g stroke="#0b0d12" stroke-width="5"><line x1="796" y1="1040" x2="868" y2="1040"/><line x1="796" y1="1070" x2="868" y2="1070"/></g>
+      </g>
       <path d="M140 1280 L140 930 Q140 820 260 800 L700 800 Q820 820 820 930 L820 1280 Z" fill="url(#metal)" stroke="url(#rim)" stroke-width="4" stroke-opacity="0.55"/>
       <path d="M300 860 L660 860 Q690 860 690 890 L690 1060 Q690 1120 630 1140 L330 1140 Q270 1120 270 1060 L270 890 Q270 860 300 860 Z" fill="url(#metalSide)" stroke="#0b0d12" stroke-width="3"/>
+      <circle cx="150" cy="880" r="46" fill="url(#metal)" stroke="url(#rim)" stroke-width="4" stroke-opacity="0.6"/>
+      <circle cx="150" cy="880" r="14" fill="#25f4ee" opacity="0.6" class="earLed"/>
+      <circle cx="810" cy="880" r="46" fill="url(#metal)" stroke="url(#rim)" stroke-width="4" stroke-opacity="0.6"/>
+      <circle cx="810" cy="880" r="14" fill="#25f4ee" opacity="0.6" class="earLed"/>
       <circle id="coreHalo" cx="480" cy="990" r="120" fill="url(#coreGlow)" opacity="0.5"/>
       <circle cx="480" cy="990" r="58" fill="#071015" stroke="url(#rim)" stroke-width="6"/>
       <circle id="core" cx="480" cy="990" r="34" fill="#25f4ee" filter="url(#glow)"/>
