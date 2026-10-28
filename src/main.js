@@ -16,10 +16,11 @@ app.setName('LIVE Studio for Linux');
 // GNOME only lets X11 windows keep themselves on top, which the pinned window
 // needs, so run through XWayland. LSL_WAYLAND=1 opts out.
 // Chromium's default GL under XWayland crashes the GPU process on hybrid
-// Intel/NVIDIA laptops; EGL works.
+// Intel/NVIDIA laptops; ANGLE on EGL works. LSL_ANGLE picks another backend
+// (vulkan, swiftshader).
 if (process.platform === 'linux' && !process.env.LSL_WAYLAND) {
   app.commandLine.appendSwitch('ozone-platform', 'x11');
-  app.commandLine.appendSwitch('use-gl', 'egl');
+  app.commandLine.appendSwitch('use-angle', process.env.LSL_ANGLE || 'gl-egl');
 }
 
 const PARTITION = 'persist:tiktok';
