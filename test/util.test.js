@@ -111,3 +111,26 @@ test('apiMessage prefers the human prompt', () => {
   assert.equal(u.apiMessage({ status_code: 1 }), 'status_code 1');
   assert.equal(u.apiMessage(null), 'empty response');
 });
+
+test('webcastHostForIdc maps data centers and their aliases', () => {
+  assert.equal(u.webcastHostForIdc('useast5'), 'https://webcast16-normal-useast5.tiktokv.us');
+  assert.equal(u.webcastHostForIdc('TTP'), 'https://webcast16-normal-useast5.tiktokv.us');
+  assert.equal(u.webcastHostForIdc('useast8'), 'https://webcast16-normal-useast8.tiktokv.us');
+  assert.equal(u.webcastHostForIdc('maliva'), 'https://webcast16-normal-c-useast1a.tiktokv.com');
+  assert.equal(u.webcastHostForIdc('my'), 'https://webcast16-normal-c-alisg.tiktokv.com');
+  assert.equal(u.webcastHostForIdc('useast2a'), 'https://webcast16-normal-no1a.tiktokv.eu');
+  assert.equal(u.webcastHostForIdc('mars'), null);
+  assert.equal(u.webcastHostForIdc(''), null);
+});
+
+test('candidateWebcastHosts tries override, IDC host, US hosts, then the rest', () => {
+  const us = [{ name: 'tt-target-idc', value: 'useast8' }, { name: 'store-country-code', value: 'us' }];
+  const list = u.candidateWebcastHosts(us, 'https://custom.example/');
+  assert.equal(list[0], 'https://custom.example');
+  assert.equal(list[1], 'https://webcast16-normal-useast8.tiktokv.us');
+  assert.equal(list[2], 'https://webcast16-normal-useast5.tiktokv.us');
+  assert.equal(list.at(-1), 'https://webcast.tiktokv.com');
+  assert.equal(new Set(list).size, list.length);
+  assert.equal(u.candidateWebcastHosts([], '')[0], 'https://webcast16-normal-useast5.tiktokv.us');
+  assert.equal(u.idcFromCookies([{ name: 'store-idc', value: 'ALISG' }]), 'alisg');
+});

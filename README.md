@@ -74,10 +74,15 @@ If you'd rather not let the app control OBS, clear **Drive OBS automatically**. 
 ## Troubleshooting
 
 - **LIVE access shows an error.** That message comes from TikTok. It usually means the account doesn't meet the LIVE requirements or has a restriction. This app can't change that.
+- **LIVE access shows HTTP 403.** Your session works only on your account's regional servers. The app picks them from your login cookies and logs the choice (`using webcast host ...`). If the detection picks the wrong one, quit the app and set `"webcastHost": "https://webcast16-normal-useast5.tiktokv.us"` (or another host from [docs/PROTOCOL.md](docs/PROTOCOL.md#regional-hosts)) in `~/.config/LIVE Studio for Linux/settings.json`.
 - **"TikTok refused to create the LIVE".** The **Log** panel shows the `status_code` and `logid` from TikTok. Open an issue with those, and remove anything personal first.
 - **OBS won't connect.** Make sure the WebSocket server is enabled in OBS and that the password matches. If OBS runs as a Flatpak, the default `127.0.0.1:4455` still works.
 - **The LIVE ends by itself after a short time.** TikTok ends a room when the heartbeat stops. Check the log for `ping failed` lines, which point to a network problem.
 - **Login loops or shows a captcha.** Complete it in the login window. If it keeps failing, click **Log out** to clear the saved session and try again.
+
+## Why not run the official app directly
+
+The official LIVE Studio uses Electron only for its interface. Capture, effects, encoding, and streaming run in ByteDance's native media SDK, networking runs through their own Cronet build (TTNet), and the app ships its own modified Electron. All of that is compiled for macOS and Windows only, so the official JavaScript doesn't run on Linux Electron. Replacing those native parts is the work this app does, with OBS as the media engine. To run the official app itself, try the Windows build under Wine.
 
 ## Privacy and what this app doesn't do
 

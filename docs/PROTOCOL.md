@@ -53,6 +53,22 @@ The official app also runs two native components that this app leaves out:
 - Device registration at `https://log.tiktokv.com/service/2/desktop/device_register/`. The payload is encrypted with a proprietary scheme. If registration fails, the official app keeps working with `device_id=0`, and this app always uses `0`.
 - ByteDance's MetaSec SDK on top of the TTNet network stack (`ttnetWithMetaSec: true`), which can add signature headers to requests. This app doesn't add or forge any signatures.
 
+## Regional hosts
+
+A logged-in session only works on the webcast hosts of the account's data center (IDC). US accounts run on separate infrastructure under `*.tiktokv.us`. On the global host, a request with a US session gets HTTP 403, while the same request without a session gets the normal `20003` (not logged in) answer.
+
+The official app never sees this in its JavaScript: it always calls `webcast.tiktokv.com`, and its native network stack (TTNet, `libsscronet`) rewrites the host from a dispatch config it downloads at startup. This app reads the IDC from the `tt-target-idc` or `store-idc` cookie that TikTok sets at login and maps it:
+
+| IDC | Webcast host |
+|---|---|
+| `useast5` (TTP) | `webcast16-normal-useast5.tiktokv.us` |
+| `useast8` | `webcast16-normal-useast8.tiktokv.us` |
+| `alisg` | `webcast16-normal-c-alisg.tiktokv.com` |
+| `useast1a` (`maliva`) | `webcast16-normal-c-useast1a.tiktokv.com` |
+| `no1a` (`ie`, `useast2a`) | `webcast16-normal-no1a.tiktokv.eu` |
+
+If that host doesn't accept the session either, the app tries the other hosts with the `create_info` precheck and keeps the first one that recognizes the login. To force a host, set `webcastHost` in the settings file.
+
 ## Login
 
 The official app shows `https://www.tiktok.com/ucenter_web/live_studio/login` in a window and lets TikTok's page handle the login. Afterwards it copies the session cookies (`sessionid`, `sessionid_ss`, `sid_tt`, `sid_guard`, `uid_tt`, `odin_tt`, and the rest) from `.tiktok.com` onto the `tiktokv.com` API domains. It also sets `sessionid` from `sessionid_ss` when only the latter exists.

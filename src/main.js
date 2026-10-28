@@ -6,7 +6,7 @@ const { app, BrowserWindow, ipcMain, session, clipboard, shell, screen, safeStor
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
-const { hasSession, extractTopics, apiMessage } = require('./util');
+const { hasSession, extractTopics, apiMessage, idcFromCookies } = require('./util');
 
 app.setName('LIVE Studio for Linux');
 
@@ -44,6 +44,7 @@ const DEFAULTS = {
   language: 'en',
   lastTitle: '',
   lastTopicId: '',
+  webcastHost: '',
 };
 let settings = { ...DEFAULTS };
 
@@ -133,6 +134,8 @@ async function refreshAccount() {
     send('account', accountState());
     return accountState();
   }
+  const country = cookies.find((c) => c.name === 'store-country-code')?.value || 'unknown';
+  log('auth', `session found; data center ${idcFromCookies(cookies) || 'unknown'}, country ${country}`);
   try {
     account = await api.getAccountInfo();
   } catch (e) {
@@ -140,7 +143,7 @@ async function refreshAccount() {
     account = { userId: '', username: '', nickname: 'Logged in', avatar: '' };
   }
   try {
-    const body = await api.getCreateInfo();
+    const { body } = await api.detectWebcastHost(settings.webcastHost);
     createInfo = { ok: body.status_code === 0, statusCode: body.status_code, message: body.status_code === 0 ? '' : apiMessage(body) };
     topics = extractTopics(body);
     if (body.status_code === 0) {

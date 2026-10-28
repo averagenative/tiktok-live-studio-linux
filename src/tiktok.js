@@ -4,9 +4,11 @@
 // It sends the logged-in user's own cookies and nothing else: no request
 // signing, no device registration. See docs/PROTOCOL.md.
 
-const { CLIENT, md5Hex, formEncode, buildCommonParams, cookieHeader, apiMessage } = require('./util');
+const {
+  CLIENT, md5Hex, formEncode, buildCommonParams, cookieHeader, apiMessage, candidateWebcastHosts, WEBCAST_DEFAULT,
+} = require('./util');
 
-const WEBCAST = 'https://webcast.tiktokv.com';
+const WEBCAST = WEBCAST_DEFAULT;
 const WWW = 'https://www.tiktok.com';
 
 function defaultUserAgent() {
@@ -35,6 +37,7 @@ class TikTokApi {
     this.log = log;
     this.platform = platform;
     this.userAgent = userAgent;
+    this.webcastBase = WEBCAST;
   }
 
   async _cookies() {
@@ -43,10 +46,10 @@ class TikTokApi {
     return { header: cookieHeader(cookies), region };
   }
 
-  async request(method, path, { params = {}, form, base = WEBCAST, common = true } = {}) {
+  async request(method, path, { params = {}, form, base, common = true } = {}) {
     const { header, region } = await this._cookies();
     const lang = this.getLanguage();
-    const url = new URL(path, base);
+    const url = new URL(path, base || this.webcastBase);
     const query = common
       ? {
         ...buildCommonParams({
@@ -92,10 +95,12 @@ class TikTokApi {
     } catch {
       json = null;
     }
-    this.log('api', `${method} ${url.pathname} -> HTTP ${res.status}`
+    this.log('api', `${method} ${url.host}${url.pathname} -> HTTP ${res.status}`
       + `${json && json.status_code !== undefined ? ` status_code=${json.status_code}` : ''}`
       + `${logId ? ` logid=${logId}` : ''}`);
     if (!res.ok) {
+      const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 300);
+      if (snippet) this.log('api', `HTTP ${res.status} body: ${snippet}`);
       throw new ApiError(`HTTP ${res.status} from ${url.pathname}`, { httpStatus: res.status, logId, body: text.slice(0, 500) });
     }
     if (!json) {
@@ -126,8 +131,32 @@ class TikTokApi {
 
   // Go-live precheck: tells us whether this account may start a LIVE and
   // carries the default title, topic and permission flags.
-  getCreateInfo(extra = {}) {
-    return this.request('GET', '/webcast/room/create_info/', { params: { live_studio: 1, ...extra } });
+  getCreateInfo(extra = {}, base) {
+    return this.request('GET', '/webcast/room/create_info/', { base, params: { live_studio: 1, ...extra } });
+  }
+
+  // Find the webcast host for this account's data center by asking each
+  // candidate for the go-live precheck, and keep the first one that knows
+  // the session. Returns that host and its create_info response.
+  async detectWebcastHost(override) {
+    const candidates = candidateWebcastHosts(await this.getCookies(), override);
+    let lastBody = null;
+    let lastErr = null;
+    for (const base of candidates) {
+      try {
+        const body = await this.getCreateInfo({}, base);
+        if (body.status_code !== 20003) {
+          this.webcastBase = base;
+          this.log('api', `using webcast host ${new URL(base).host}`);
+          return { base, body };
+        }
+        lastBody = body;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (lastBody) return { base: null, body: lastBody };
+    throw lastErr || new Error('No webcast host answered');
   }
 
   getHashtags() {

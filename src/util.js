@@ -177,6 +177,53 @@ function extractTopics(body, limit = 200) {
   return [...out].map(([id, title]) => ({ id, title }));
 }
 
+// Accounts live in one data center (IDC), and the webcast API only accepts a
+// logged-in session on that IDC's hosts. US accounts (TTP) are on separate
+// *.tiktokv.us infrastructure. The official app learns the host from TTNet's
+// dispatch config; we map the IDC cookie TikTok sets at login instead.
+const WEBCAST_DEFAULT = 'https://webcast.tiktokv.com';
+const WEBCAST_BY_IDC = Object.freeze({
+  useast5: 'https://webcast16-normal-useast5.tiktokv.us',
+  useast8: 'https://webcast16-normal-useast8.tiktokv.us',
+  alisg: 'https://webcast16-normal-c-alisg.tiktokv.com',
+  useast1a: 'https://webcast16-normal-c-useast1a.tiktokv.com',
+  no1a: 'https://webcast16-normal-no1a.tiktokv.eu',
+});
+const IDC_ALIASES = Object.freeze({
+  ttp: 'useast5', ttp2: 'useast8',
+  sg: 'alisg', my: 'alisg',
+  va: 'useast1a', maliva: 'useast1a',
+  ie: 'no1a', eu: 'no1a', 'eu-ttp': 'no1a', 'eu-ttp2': 'no1a', gcp: 'no1a', useast2a: 'no1a',
+});
+
+function idcFromCookies(cookies) {
+  const get = (n) => (cookies || []).find((c) => c.name === n && c.value)?.value;
+  return (get('tt-target-idc') || get('store-idc') || '').toLowerCase();
+}
+
+function webcastHostForIdc(idc) {
+  const key = String(idc || '').toLowerCase();
+  return WEBCAST_BY_IDC[key] || WEBCAST_BY_IDC[IDC_ALIASES[key]] || null;
+}
+
+// Hosts to try, best guess first: explicit override, the IDC's host, then the
+// rest of the known regional hosts, then the global default.
+function candidateWebcastHosts(cookies, override) {
+  const list = [];
+  const add = (h) => {
+    if (h && !list.includes(h)) list.push(h.replace(/\/+$/, ''));
+  };
+  add(override);
+  add(webcastHostForIdc(idcFromCookies(cookies)));
+  if ((cookies || []).some((c) => c.name === 'store-country-code' && /^us$/i.test(c.value))) {
+    add(WEBCAST_BY_IDC.useast5);
+    add(WEBCAST_BY_IDC.useast8);
+  }
+  for (const h of Object.values(WEBCAST_BY_IDC)) add(h);
+  add(WEBCAST_DEFAULT);
+  return list;
+}
+
 function apiMessage(body) {
   if (!body) return 'empty response';
   const d = body.data || {};
@@ -200,5 +247,10 @@ module.exports = {
   hasSession,
   summarizeRoom,
   extractTopics,
+  WEBCAST_DEFAULT,
+  WEBCAST_BY_IDC,
+  idcFromCookies,
+  webcastHostForIdc,
+  candidateWebcastHosts,
   apiMessage,
 };

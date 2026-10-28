@@ -11,6 +11,8 @@ ICON_DEST="$HOME/.local/share/icons/hicolor/512x512/apps/$APP_ID.png"
 DESKTOP_DEST="$HOME/.local/share/applications/$APP_ID.desktop"
 
 mkdir -p "$HOME/Applications" "$(dirname "$ICON_DEST")" "$(dirname "$DESKTOP_DEST")"
+# Replace rather than overwrite, so a running copy keeps its mounted image.
+rm -f "$APPIMAGE_DEST"
 cp "$APPIMAGE_SRC" "$APPIMAGE_DEST"
 chmod +x "$APPIMAGE_DEST"
 cp build/icon.png "$ICON_DEST"
