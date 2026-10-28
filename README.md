@@ -190,7 +190,7 @@ The code is plain CommonJS with no build step:
 ## Roadmap
 
 - More avatars to choose from, including animal themes.
-- Color and theme options for **Set up TikTok scenes**, such as background, frame colors, and fonts, instead of the single cyan and pink look.
+- Color and theme options for **Set up TikTok scenes**, such as background, frame colors, and fonts, instead of the single cyan and pink look. A theme picker shows a preview of each theme's scenes before you apply one to OBS.
 
 ## License
 
