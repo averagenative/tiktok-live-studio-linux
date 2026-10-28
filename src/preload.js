@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('ls', {
   refreshAccount: () => call('account:refresh'),
   obsConnect: () => call('obs:connect'),
   obsDisconnect: () => call('obs:disconnect'),
+  obsSetup: () => call('obs:setup'),
   goLive: (form) => call('live:start', form),
   endLive: () => call('live:end'),
   markStreaming: () => call('live:mark-streaming'),

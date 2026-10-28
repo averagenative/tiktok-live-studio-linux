@@ -42,8 +42,8 @@ function fakeObs() {
   obs.getStreamService = rec('GetStreamServiceSettings', { streamServiceType: 'rtmp_common', streamServiceSettings: { service: 'Twitch' } });
   obs.setCustomRtmp = rec('SetCustomRtmp');
   obs.setStreamService = rec('SetStreamServiceSettings');
-  obs.getVideoSettings = rec('GetVideoSettings', { baseWidth: 1920, baseHeight: 1080, outputWidth: 1920, outputHeight: 1080 });
-  obs.setVideoSettings = rec('SetVideoSettings');
+  obs.getProfiles = rec('GetProfileList', { currentProfileName: 'Untitled', profiles: ['Untitled', 'TikTok Vertical'] });
+  obs.setProfile = rec('SetCurrentProfile');
   obs.startStream = rec('StartStream');
   obs.stopStream = rec('StopStream');
   return obs;
@@ -51,19 +51,22 @@ function fakeObs() {
 
 const tick = () => new Promise((r) => setImmediate(r));
 
-test('full LIVE: create, drive OBS, go living on stream start, finish and restore OBS', async () => {
+test('full LIVE with the TikTok profile: switch profile, go living, finish, switch back', async () => {
   const api = fakeApi();
   const obs = fakeObs();
   const s = new LiveSession({ api, obs });
 
-  await s.goLive({ title: 'hi', hashtagId: 5, setCanvas: true });
+  await s.goLive({ title: 'hi', hashtagId: 5, profile: 'TikTok Vertical' });
   assert.equal(s.state, 'preparing');
   assert.equal(api.calls.create[0].title, 'hi');
   assert.equal(api.calls.create[0].live_studio, 1);
   assert.equal(api.calls.create[0].hashtag_id, 5);
+  const names = obs.calls.map((c) => c[0]);
+  assert.ok(names.indexOf('SetCurrentProfile') < names.indexOf('SetCustomRtmp'), 'profile switch happens before the key is set');
+  assert.deepEqual(obs.calls.find((c) => c[0] === 'SetCurrentProfile').slice(1), ['TikTok Vertical']);
   assert.deepEqual(obs.calls.find((c) => c[0] === 'SetCustomRtmp').slice(1), ['rtmp://push.example/live/', 'stream-1?sign=z']);
-  assert.deepEqual(obs.calls.find((c) => c[0] === 'SetVideoSettings')[1], { baseWidth: 1080, baseHeight: 1920, outputWidth: 1080, outputHeight: 1920 });
-  assert.ok(obs.calls.some((c) => c[0] === 'StartStream'));
+  assert.ok(!names.includes('GetStreamServiceSettings'), 'no service backup needed when switching profiles');
+  assert.ok(names.includes('StartStream'));
 
   await tick();
   assert.equal(api.calls.ping[0].status, RoomStatus.prepare);
@@ -78,11 +81,32 @@ test('full LIVE: create, drive OBS, go living on stream start, finish and restor
   assert.equal(s.state, 'ended');
   assert.equal(api.calls.ping.at(-1).status, RoomStatus.finish);
   assert.ok(obs.calls.some((c) => c[0] === 'StopStream'));
+  assert.deepEqual(obs.calls.filter((c) => c[0] === 'SetCurrentProfile').at(-1).slice(1), ['Untitled']);
+  assert.ok(!obs.calls.some((c) => c[0] === 'SetStreamServiceSettings'));
+  assert.equal(s.timer, null);
+});
+
+test('without a profile the previous stream service is restored', async () => {
+  const api = fakeApi();
+  const obs = fakeObs();
+  const s = new LiveSession({ api, obs });
+  await s.goLive({ title: 'hi' });
+  assert.ok(!obs.calls.some((c) => c[0] === 'SetCurrentProfile'));
+  obs.emit('stream', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED' });
+  await tick();
+  await s.endLive();
   const restore = obs.calls.filter((c) => c[0] === 'SetStreamServiceSettings').at(-1);
   assert.deepEqual(restore.slice(1), ['rtmp_common', { service: 'Twitch' }]);
-  assert.deepEqual(obs.calls.filter((c) => c[0] === 'SetVideoSettings').at(-1)[1],
-    { baseWidth: 1920, baseHeight: 1080, outputWidth: 1920, outputHeight: 1080 });
-  assert.equal(s.timer, null);
+});
+
+test('a missing profile is skipped with a warning', async () => {
+  const obs = fakeObs();
+  const logs = [];
+  const s = new LiveSession({ api: fakeApi(), obs, log: (k, m) => logs.push(m) });
+  await s.goLive({ title: 'x', profile: 'Nope' });
+  assert.ok(!obs.calls.some((c) => c[0] === 'SetCurrentProfile'));
+  assert.ok(logs.some((m) => m.includes('no "Nope" profile')));
+  await s.endLive();
 });
 
 test('create refusal surfaces TikTok message and never touches OBS', async () => {

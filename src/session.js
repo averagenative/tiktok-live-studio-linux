@@ -25,7 +25,7 @@ class LiveSession extends EventEmitter {
     this.timer = null;
     this.pingFailures = 0;
     this.savedObsService = null;
-    this.savedObsVideo = null;
+    this.prevProfile = null;
     this.driveObs = false;
 
     this.obs.on('stream', (d) => this._onObsStream(d));
@@ -60,7 +60,7 @@ class LiveSession extends EventEmitter {
     this.emit('state', this.snapshot());
   }
 
-  async goLive({ title, hashtagId = 0, gameTagId = 0, vertical = true, driveObs = true, setCanvas = false }) {
+  async goLive({ title, hashtagId = 0, gameTagId = 0, vertical = true, driveObs = true, profile = null }) {
     if (this.state !== 'idle' && this.state !== 'ended' && this.state !== 'error') {
       throw new Error(`Already ${this.state}`);
     }
@@ -100,7 +100,7 @@ class LiveSession extends EventEmitter {
       this._startPing();
       this._set('preparing');
 
-      if (driveObs) await this._startObs(setCanvas);
+      if (driveObs) await this._startObs(profile);
     } catch (e) {
       this.log('error', e.message);
       // A room that exists but never went live should not sit there.
@@ -111,17 +111,28 @@ class LiveSession extends EventEmitter {
     }
   }
 
-  async _startObs(setCanvas) {
+  // With a profile (the "TikTok Vertical" one the setup creates), switch to
+  // it for the LIVE: it carries the 1080x1920 canvas and encoder settings,
+  // and switching back afterwards restores everything, stream service
+  // included. Without one, only the stream service is swapped and restored.
+  async _startObs(profile) {
     const status = await this.obs.getStreamStatus().catch(() => ({}));
     if (status.outputActive) {
       throw new Error('OBS is already streaming somewhere else; stop that stream first');
     }
-    this.savedObsService = await this.obs.getStreamService().catch(() => null);
-    await this.obs.setCustomRtmp(this.room.push.server, this.room.push.key);
-    if (setCanvas) {
-      this.savedObsVideo = await this.obs.getVideoSettings().catch(() => null);
-      await this.obs.setVideoSettings({ baseWidth: 1080, baseHeight: 1920, outputWidth: 1080, outputHeight: 1920 });
+    this.prevProfile = null;
+    if (profile) {
+      const { currentProfileName, profiles = [] } = await this.obs.getProfiles().catch(() => ({}));
+      if (!profiles.includes(profile)) {
+        this.log('warn', `OBS has no "${profile}" profile; run "Set up TikTok scenes" or untick the profile option`);
+      } else if (currentProfileName !== profile) {
+        await this.obs.setProfile(profile);
+        this.prevProfile = currentProfileName;
+        this.log('obs', `switched OBS to profile "${profile}"`);
+      }
     }
+    if (!this.prevProfile) this.savedObsService = await this.obs.getStreamService().catch(() => null);
+    await this.obs.setCustomRtmp(this.room.push.server, this.room.push.key);
     await this.obs.startStream();
     this.log('obs', 'StartStream sent');
   }
@@ -201,16 +212,22 @@ class LiveSession extends EventEmitter {
   }
 
   async _restoreObs() {
-    if (this.savedObsService?.streamServiceType) {
+    if (this.prevProfile) {
+      // OBS won't switch profiles while the stream output is still stopping.
+      for (let i = 0; i < 40; i += 1) {
+        const s = await this.obs.getStreamStatus().catch(() => ({}));
+        if (!s.outputActive) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      await this.obs.setProfile(this.prevProfile)
+        .then(() => this.log('obs', `switched OBS back to profile "${this.prevProfile}"`))
+        .catch((e) => this.log('warn', `could not switch OBS back to "${this.prevProfile}": ${e.message}`));
+    } else if (this.savedObsService?.streamServiceType) {
       await this.obs.setStreamService(this.savedObsService.streamServiceType,
         this.savedObsService.streamServiceSettings || {}).catch(() => {});
     }
-    if (this.savedObsVideo) {
-      const { baseWidth, baseHeight, outputWidth, outputHeight } = this.savedObsVideo;
-      await this.obs.setVideoSettings({ baseWidth, baseHeight, outputWidth, outputHeight }).catch(() => {});
-    }
     this.savedObsService = null;
-    this.savedObsVideo = null;
+    this.prevProfile = null;
   }
 
   async endLive({ fromObs = false } = {}) {

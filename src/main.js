@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, session, clipboard, shell, screen, safeStor
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
+const { setupTikTok, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { hasSession, extractTopics, apiMessage, idcFromCookies } = require('./util');
 
 app.setName('LIVE Studio for Linux');
@@ -38,7 +39,7 @@ const DEFAULTS = {
   obsPort: 4455,
   obsPasswordEnc: '',
   driveObs: true,
-  setCanvas: false,
+  useTikTokProfile: true,
   vertical: true,
   platform: 'mac',
   language: 'en',
@@ -237,7 +238,7 @@ ipcMain.handle('state:get', wrap(async () => ({
 })));
 
 ipcMain.handle('settings:set', wrap(async (patch) => {
-  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'setCanvas', 'vertical', 'language', 'lastTitle', 'lastTopicId'];
+  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'vertical', 'language', 'lastTitle', 'lastTopicId'];
   for (const k of allowed) if (k in patch) settings[k] = patch[k];
   if ('obsPassword' in patch) setObsPassword(patch.obsPassword);
   saveSettings();
@@ -265,6 +266,33 @@ ipcMain.handle('obs:disconnect', wrap(async () => {
   return obsState();
 }));
 
+// Copy the scene artwork somewhere OBS can read it (the app's own files may
+// sit inside an AppImage mount or asar archive).
+function exportObsAssets() {
+  const src = path.join(__dirname, 'obs-assets');
+  const dest = path.join(app.getPath('userData'), 'obs-assets');
+  fs.mkdirSync(dest, { recursive: true });
+  for (const f of fs.readdirSync(src)) {
+    if (f.endsWith('.png')) fs.writeFileSync(path.join(dest, f), fs.readFileSync(path.join(src, f)));
+  }
+  return dest;
+}
+
+ipcMain.handle('obs:setup', wrap(async () => {
+  if (!obs.connected) throw new Error('Connect to OBS first');
+  const local = ['127.0.0.1', 'localhost', '::1'].includes(String(settings.obsHost).trim());
+  if (!local) log('warn', 'OBS is on another machine; using plain colors instead of the scene artwork');
+  const result = await setupTikTok(obs, {
+    handle: account?.username || '',
+    assetsDir: local ? exportObsAssets() : null,
+    log,
+  });
+  log('obs', result.created
+    ? `setup done: profile "${result.profile}", scene collection "${result.collection}"`
+    : `setup: "${result.collection}" already existed, nothing changed`);
+  return result;
+}));
+
 ipcMain.handle('live:start', wrap(async ({ title, topicId }) => {
   settings.lastTitle = title || '';
   settings.lastTopicId = topicId || '';
@@ -274,7 +302,7 @@ ipcMain.handle('live:start', wrap(async ({ title, topicId }) => {
     hashtagId: topicId ? Number(topicId) : 0,
     vertical: settings.vertical,
     driveObs: settings.driveObs,
-    setCanvas: settings.setCanvas,
+    profile: settings.useTikTokProfile ? OBS_PROFILE : null,
   });
   return live.snapshot();
 }));

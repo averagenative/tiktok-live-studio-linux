@@ -145,12 +145,12 @@ class ObsClient extends EventEmitter {
     return this.setStreamService('rtmp_custom', { server, key, use_auth: false, bwtest: false });
   }
 
-  getVideoSettings() {
-    return this.call('GetVideoSettings');
+  getProfiles() {
+    return this.call('GetProfileList');
   }
 
-  setVideoSettings(settings) {
-    return this.call('SetVideoSettings', settings);
+  setProfile(profileName) {
+    return this.call('SetCurrentProfile', { profileName });
   }
 
   getStreamStatus() {

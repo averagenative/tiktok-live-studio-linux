@@ -13,7 +13,8 @@ Version 0.1.0 is untested against a real LIVE. The request formats come from rea
 - Opens TikTok's own login page in a window, so you sign in on TikTok and the app only keeps the session cookie TikTok sets.
 - Checks whether your account is allowed to go LIVE from LIVE Studio.
 - Creates a LIVE room with your title and topic, and gets the RTMP server and stream key for that room.
-- Drives OBS through its built-in WebSocket server: sets the custom RTMP server and key, optionally switches the canvas to 1080x1920, starts the stream, and restores your previous OBS settings afterwards.
+- Drives OBS through its built-in WebSocket server: sets the custom RTMP server and key, starts the stream, and restores your previous OBS settings afterwards.
+- Builds a styled vertical TikTok profile and scene collection in OBS with one click.
 - Sends the heartbeat TikTok expects every 5 seconds while you're LIVE, and ends the room cleanly when you click **End LIVE**, stop streaming in OBS, or quit the app.
 
 OBS does all of the capture, scenes, and encoding. This app only handles the TikTok side.
@@ -60,16 +61,37 @@ OBS does all of the capture, scenes, and encoding. This app only handles the Tik
 
 The default host and port (`127.0.0.1`, `4455`) match OBS's defaults.
 
+### Set up TikTok scenes
+
+After you connect, click **Set up TikTok scenes**. The app adds the following to OBS, and leaves your existing profiles and scene collections alone:
+
+- A **TikTok Vertical** profile: 1080x1920 at 30 fps, NVENC H.264 at 6000 kbps, and AAC audio at 160 kbps.
+- A **TikTok Vertical** scene collection with six scenes: **Starting Soon**, **Camera**, **Screen + Camera**, **Screen**, **Be Right Back**, and **Ending**. They use a dark background, neon-edged rounded frames for the webcam and screen, and your @handle in Montserrat.
+- Noise suppression, a compressor, and a limiter on your microphone.
+
+During the setup, GNOME asks which screen or window to share, and the webcam turns on. To change any text, double-click the text source in OBS. With **Use the TikTok Vertical OBS profile while LIVE** selected, the app switches OBS to that profile when you go LIVE and switches back afterwards.
+
+If the setup finds an existing **TikTok Vertical** scene collection, it switches to that collection and changes nothing. To rebuild the scenes, remove that collection in OBS first.
+
 If you'd rather not let the app control OBS, clear **Drive OBS automatically**. When you go LIVE, the app shows the server and stream key. Paste them into OBS under **Settings > Stream > Service: Custom**, start streaming, and then click **I've started streaming in OBS**.
 
 ## Go LIVE
 
 1. Click **Log in to TikTok** and sign in. The window closes after TikTok sets your session.
 2. Check that the **Account** panel shows **LIVE access: ready**.
-3. Set up your scene in OBS. For a vertical LIVE, select **Vertical (portrait) LIVE** and either set a 1080x1920 canvas yourself or select **Switch the OBS canvas to 1080x1920 while LIVE**.
+3. In OBS, pick a scene from the **TikTok Vertical** collection, or build your own on a 1080x1920 canvas. Select **Vertical (portrait) LIVE** for a portrait LIVE.
 4. Enter a title, pick a topic if you want one, and click **Go LIVE**.
 5. The badge changes from **PREPARING** to **LIVE** after OBS reports that the stream is running.
 6. To finish, click **End LIVE**. Stopping the stream in OBS or quitting the app also ends the LIVE.
+
+## Optional OBS extras
+
+These plugins and tools aren't required, but they work well with a TikTok setup on Fedora:
+
+- **Game capture with less overhead**: `sudo dnf install obs-studio-plugin-vkcapture`, then add a **Game Capture (Vulkan/OpenGL)** source and start games with `obs-gamecapture %command%` (in Steam's launch options) or `obs-gamecapture <game>`.
+- **Phone as a camera**: `sudo dnf install obs-studio-plugin-droidcam`, plus the DroidCam app on your phone.
+- **Alerts, chat, and goal overlays**: third-party tools such as TikFinity give you a URL to add as a **Browser** source. They're separate services with their own terms, so read those first.
+- **Background removal for the webcam**: the [obs-backgroundremoval](https://github.com/royshil/obs-backgroundremoval) plugin.
 
 ## Troubleshooting
 
@@ -99,6 +121,8 @@ For the request details, see [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 - `make check` runs a syntax check and the unit tests (`node --test`).
 - `make hooks` sets `core.hooksPath` to `.githooks`, so `git push` runs `make check` first.
+- `scripts/obs-sandbox.sh` starts a throwaway OBS on a virtual display (Xvfb) with its own config and an unauthenticated obs-websocket on port 4466, for testing the OBS automation without touching your real OBS.
+- `scripts/make-obs-assets.sh` regenerates the scene artwork in `src/obs-assets/` with ImageMagick.
 - The code is plain CommonJS with no build step: `src/main.js` (Electron main process), `src/tiktok.js` (webcast API client), `src/obs.js` (obs-websocket 5 client), `src/session.js` (the LIVE lifecycle), and `src/renderer/` (UI).
 
 ## License

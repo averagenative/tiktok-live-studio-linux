@@ -77,6 +77,7 @@ function renderObs() {
   $('obs-status').textContent = o.connected ? `connected (obs-websocket ${o.version})` : o.error ? o.error : 'not connected';
   show($('obs-connect'), !o.connected);
   show($('obs-disconnect'), o.connected);
+  $('obs-setup').disabled = !o.connected;
   renderLive();
 }
 
@@ -88,7 +89,7 @@ function renderSettings() {
   $('obs-port').value = s.obsPort ?? 4455;
   $('obs-pass').placeholder = s.hasObsPassword ? 'saved (type to change)' : 'none';
   $('drive-obs').checked = !!s.driveObs;
-  $('set-canvas').checked = !!s.setCanvas;
+  $('use-profile').checked = !!s.useTikTokProfile;
   $('vertical').checked = !!s.vertical;
   if (!$('title').value) $('title').value = s.lastTitle || '';
 }
@@ -194,7 +195,8 @@ function wire() {
     renderObs();
   }));
   $('drive-obs').addEventListener('change', (e) => saveSetting({ driveObs: e.target.checked }));
-  $('set-canvas').addEventListener('change', (e) => saveSetting({ setCanvas: e.target.checked }));
+  $('use-profile').addEventListener('change', (e) => saveSetting({ useTikTokProfile: e.target.checked }));
+  $('obs-setup').addEventListener('click', (e) => act(e.target, () => api.obsSetup()));
   $('vertical').addEventListener('change', (e) => saveSetting({ vertical: e.target.checked }));
 
   $('go').addEventListener('click', (e) => act(e.target, async () => {
