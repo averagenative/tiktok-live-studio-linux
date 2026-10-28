@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('ls', {
   obsConnect: () => call('obs:connect'),
   obsDisconnect: () => call('obs:disconnect'),
   obsSetup: () => call('obs:setup'),
+  setRobot: (enabled) => call('obs:robot', enabled),
+  previewRobot: () => call('avatar:preview'),
   goLive: (form) => call('live:start', form),
   endLive: () => call('live:end'),
   markStreaming: () => call('live:mark-streaming'),

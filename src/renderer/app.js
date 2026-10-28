@@ -90,6 +90,7 @@ function renderSettings() {
   $('obs-pass').placeholder = s.hasObsPassword ? 'saved (type to change)' : 'none';
   $('drive-obs').checked = !!s.driveObs;
   $('use-profile').checked = !!s.useTikTokProfile;
+  $('robot').checked = !!s.robotAvatar;
   $('vertical').checked = !!s.vertical;
   if (!$('title').value) $('title').value = s.lastTitle || '';
 }
@@ -196,6 +197,16 @@ function wire() {
   }));
   $('drive-obs').addEventListener('change', (e) => saveSetting({ driveObs: e.target.checked }));
   $('use-profile').addEventListener('change', (e) => saveSetting({ useTikTokProfile: e.target.checked }));
+  $('robot').addEventListener('change', (e) => act(null, async () => {
+    try {
+      await api.setRobot(e.target.checked);
+      view.settings = { ...view.settings, robotAvatar: e.target.checked };
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      throw err;
+    }
+  }));
+  $('robot-preview').addEventListener('click', (e) => act(e.target, () => api.previewRobot()));
   $('obs-setup').addEventListener('click', (e) => act(e.target, async () => {
     const el = $('setup-status');
     el.hidden = false;

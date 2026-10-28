@@ -374,4 +374,60 @@ async function tuneMic(obs, warnings, say, sourceName) {
   if (added.length) say(`mic "${mic1}": ${added.join(', ')}`);
 }
 
-module.exports = { setupTikTok, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, HOLES };
+// ---- robot avatar ------------------------------------------------------------
+// Browser sources showing the app's voice-reactive robot, one per webcam slot,
+// sized to the slot so the page lays itself out (portrait shows the torso,
+// wide frames the head). Toggling swaps them with the Webcam in those scenes.
+const ROBOT_SLOTS = [
+  { scene: 'Camera', source: 'Robot', hole: HOLES.camera },
+  { scene: 'Screen + Camera', source: 'Robot (wide)', hole: HOLES.sc_cam },
+];
+const BROWSER_CSS = 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }';
+
+async function setRobotAvatar(obs, { enabled, url, log = () => {} }) {
+  const say = (m) => log('obs', `robot: ${m}`);
+  const { scenes } = await obs.call('GetSceneList');
+  const have = new Set(scenes.map((s) => s.sceneName));
+  const slots = ROBOT_SLOTS.filter((s) => have.has(s.scene));
+  if (!slots.length) throw new Error('No Camera scenes found; run "Set up TikTok scenes" first');
+  const { inputs } = await obs.call('GetInputList');
+  const exists = new Set(inputs.map((i) => i.inputName));
+
+  for (const { scene, source, hole } of slots) {
+    const settings = {
+      url, width: hole.w + 8, height: hole.h + 8, fps: 30, css: BROWSER_CSS,
+      reroute_audio: false, shutdown: false, restart_when_active: false,
+    };
+    const { sceneItems } = await obs.call('GetSceneItemList', { sceneName: scene });
+    let item = sceneItems.find((i) => i.sourceName === source);
+    if (!item) {
+      let sceneItemId;
+      if (!exists.has(source)) {
+        ({ sceneItemId } = await obs.call('CreateInput', {
+          sceneName: scene, inputName: source, inputKind: 'browser_source', inputSettings: settings, sceneItemEnabled: enabled,
+        }));
+        exists.add(source);
+      } else {
+        await obs.call('SetInputSettings', { inputName: source, inputSettings: settings });
+        ({ sceneItemId } = await obs.call('CreateSceneItem', { sceneName: scene, sourceName: source, sceneItemEnabled: enabled }));
+      }
+      await obs.call('SetSceneItemTransform', { sceneName: scene, sceneItemId, sceneItemTransform: slot(hole) });
+      // Sit right above the Webcam layer so the frame overlay stays on top.
+      const cam = sceneItems.find((i) => i.sourceName === 'Webcam');
+      const frame = sceneItems.find((i) => i.sourceName.startsWith('Frame:'));
+      const index = cam ? cam.sceneItemIndex + 1 : frame ? frame.sceneItemIndex : null;
+      if (index !== null) await obs.call('SetSceneItemIndex', { sceneName: scene, sceneItemId, sceneItemIndex: index });
+      item = { sceneItemId };
+      say(`added "${source}" to ${scene}`);
+    } else {
+      await obs.call('SetInputSettings', { inputName: source, inputSettings: { url } });
+    }
+    await obs.call('SetSceneItemEnabled', { sceneName: scene, sceneItemId: item.sceneItemId, sceneItemEnabled: enabled });
+    const cam = sceneItems.find((i) => i.sourceName === 'Webcam');
+    if (cam) await obs.call('SetSceneItemEnabled', { sceneName: scene, sceneItemId: cam.sceneItemId, sceneItemEnabled: !enabled });
+  }
+  say(enabled ? 'robot on, webcam hidden' : 'webcam on, robot hidden');
+  return { scenes: slots.map((s) => s.scene) };
+}
+
+module.exports = { setupTikTok, setRobotAvatar, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, HOLES, ROBOT_SLOTS };

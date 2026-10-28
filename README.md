@@ -15,6 +15,7 @@ Version 0.1.0 is untested against a real LIVE. The request formats come from rea
 - Creates a LIVE room with your title and topic, and gets the RTMP server and stream key for that room.
 - Drives OBS through its built-in WebSocket server: sets the custom RTMP server and key, starts the stream, and restores your previous OBS settings afterwards.
 - Builds a styled vertical TikTok profile and scene collection in OBS with one click.
+- Can replace your webcam with a voice-reactive robot avatar.
 - Sends the heartbeat TikTok expects every 5 seconds while you're LIVE, and ends the room cleanly when you click **End LIVE**, stop streaming in OBS, or quit the app.
 
 OBS does all of the capture, scenes, and encoding. This app only handles the TikTok side.
@@ -83,6 +84,15 @@ If you'd rather not let the app control OBS, clear **Drive OBS automatically**. 
 4. Enter a title, pick a topic if you want one, and click **Go LIVE**.
 5. The badge changes from **PREPARING** to **LIVE** after OBS reports that the stream is running.
 6. To finish, click **End LIVE**. Stopping the stream in OBS or quitting the app also ends the LIVE.
+
+## Robot avatar
+
+To stay off camera, select **Robot avatar instead of webcam** in the **OBS** panel. An animated robot replaces your webcam in the **Camera** and **Screen + Camera** scenes. It blinks, bobs, and lights up its equalizer mouth when your mic picks up your voice. Your webcam is hidden from the stream while the robot is on. Clear the option to switch back.
+
+- The robot is an OBS **Browser** source that loads `http://127.0.0.1:47812/avatar` from this app, so keep the app running while you're LIVE.
+- The mouth follows the level of your mic input in OBS (`Mic`, or `Mic/Aux` in other scene collections), after the mic filters.
+- Click **Preview robot** to see it react to your voice. The preview needs the OBS connection, because the level comes from OBS.
+- It works only when OBS runs on the same machine as the app.
 
 ## Optional OBS extras
 

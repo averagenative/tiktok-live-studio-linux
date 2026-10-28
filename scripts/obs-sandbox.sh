@@ -9,8 +9,8 @@ mkdir -p "$DIR/obs-studio/plugin_config/obs-websocket"
 cat > "$DIR/obs-studio/plugin_config/obs-websocket/config.json" <<JSON
 {"alerts_enabled": false, "auth_required": false, "first_load": false, "server_enabled": true, "server_password": "", "server_port": $PORT}
 JSON
-printf '[General]\nFirstRun=true\n' > "$DIR/obs-studio/user.ini"
-printf '[General]\nFirstRun=true\n' > "$DIR/obs-studio/global.ini"
+printf '[General]\nFirstRun=true\nBrowserHWAccel=false\n' > "$DIR/obs-studio/user.ini"
+printf '[General]\nFirstRun=true\nBrowserHWAccel=false\n' > "$DIR/obs-studio/global.ini"
 echo "sandbox config: $DIR (websocket port $PORT)"
 exec env XDG_CONFIG_HOME="$DIR" QT_QPA_PLATFORM=xcb xvfb-run -a -s '-screen 0 1920x1080x24' \
   obs --multi --disable-shutdown-check --disable-updater --minimize-to-tray

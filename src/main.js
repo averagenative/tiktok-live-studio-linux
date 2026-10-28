@@ -7,7 +7,8 @@ const { app, BrowserWindow, ipcMain, session, clipboard, shell, screen, safeStor
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
-const { setupTikTok, PROFILE: OBS_PROFILE } = require('./obs-setup');
+const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
+const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
 const { hasSession, extractTopics, apiMessage, idcFromCookies } = require('./util');
 
 app.setName('LIVE Studio for Linux');
@@ -41,6 +42,8 @@ const DEFAULTS = {
   obsPasswordEnc: '',
   driveObs: true,
   useTikTokProfile: true,
+  robotAvatar: false,
+  avatarMic: '',
   vertical: true,
   platform: 'mac',
   language: 'en',
@@ -120,7 +123,17 @@ const live = new LiveSession({ api, obs, log });
 live.on('state', (s) => send('session', s));
 obs.on('disconnected', (code) => {
   log('obs', `disconnected (code ${code})`);
+  avatar?.push(0);
   send('obs', obsState());
+});
+
+// The robot avatar's mouth follows the mic level from OBS's own meters.
+let avatar = null;
+obs.on('event', (type, data) => {
+  if (type !== 'InputVolumeMeters' || !avatar) return;
+  const mic = pickMic(data.inputs, settings.avatarMic);
+  const input = mic && data.inputs.find((i) => i.inputName === mic);
+  avatar.push(input ? levelFromMeter(input.inputLevelsMul) : 0);
 });
 
 function obsState(error = '') {
@@ -239,7 +252,7 @@ ipcMain.handle('state:get', wrap(async () => ({
 })));
 
 ipcMain.handle('settings:set', wrap(async (patch) => {
-  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'vertical', 'language', 'lastTitle', 'lastTopicId'];
+  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'robotAvatar', 'vertical', 'language', 'lastTitle', 'lastTopicId'];
   for (const k of allowed) if (k in patch) settings[k] = patch[k];
   if ('obsPassword' in patch) setObsPassword(patch.obsPassword);
   saveSettings();
@@ -297,8 +310,30 @@ ipcMain.handle('obs:setup', wrap(async () => {
   });
   log('obs', result.created
     ? `setup done: profile "${result.profile}", scene collection "${result.collection}"`
-    : `setup: "${result.collection}" already existed, nothing changed`);
+    : `setup: repaired "${result.collection}" (${result.added} change(s))`);
+  if (settings.robotAvatar) await setRobotAvatar(obs, { enabled: true, url: avatar.url, log }).catch((e) => result.warnings.push(e.message));
   return result;
+}));
+
+ipcMain.handle('obs:robot', wrap(async (enabled) => {
+  settings.robotAvatar = !!enabled;
+  saveSettings();
+  if (!obs.connected) throw new Error('Connect to OBS first');
+  if (!isThisMachine(settings.obsHost)) throw new Error('The robot avatar needs OBS on this machine');
+  return setRobotAvatar(obs, { enabled: !!enabled, url: avatar.url, log });
+}));
+
+let previewWin = null;
+ipcMain.handle('avatar:preview', wrap(async () => {
+  if (previewWin && !previewWin.isDestroyed()) {
+    previewWin.focus();
+    return;
+  }
+  previewWin = new BrowserWindow({
+    width: 420, height: 560, parent: mainWin, title: 'Robot preview', autoHideMenuBar: true,
+    backgroundColor: '#0d0f14', webPreferences: { contextIsolation: true, sandbox: true },
+  });
+  previewWin.loadURL(`${avatar.url}?preview=1`);
 }));
 
 ipcMain.handle('live:start', wrap(async ({ title, topicId }) => {
@@ -417,6 +452,7 @@ app.on('second-instance', () => {
 app.whenReady().then(async () => {
   loadSettings();
   if (process.env.LSL_CAPTURE && process.env.LSL_THEME) settings.theme = process.env.LSL_THEME;
+  avatar = startAvatarServer({ port: Number(process.env.LSL_AVATAR_PORT) || 47812, log });
   createMainWindow();
   log('app', `started ${app.getVersion()} (Electron ${process.versions.electron})`);
   refreshAccount().catch((e) => log('warn', e.message));

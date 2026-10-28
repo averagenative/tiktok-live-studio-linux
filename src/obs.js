@@ -7,7 +7,7 @@ const { EventEmitter } = require('node:events');
 const { obsAuth } = require('./util');
 
 const OpCode = { Hello: 0, Identify: 1, Identified: 2, Event: 5, Request: 6, RequestResponse: 7 };
-const EventSubscription = { Outputs: 1 << 6 };
+const EventSubscription = { Outputs: 1 << 6, InputVolumeMeters: 1 << 16 };
 
 class ObsClient extends EventEmitter {
   constructor({ log = () => {} } = {}) {
@@ -73,7 +73,7 @@ class ObsClient extends EventEmitter {
         switch (msg.op) {
           case OpCode.Hello: {
             this.obsVersion = msg.d.obsWebSocketVersion || '';
-            const identify = { rpcVersion: 1, eventSubscriptions: EventSubscription.Outputs };
+            const identify = { rpcVersion: 1, eventSubscriptions: EventSubscription.Outputs | EventSubscription.InputVolumeMeters };
             if (msg.d.authentication) {
               if (!password) {
                 done(new Error('OBS WebSocket needs a password; set it in the OBS panel'));
