@@ -28,6 +28,7 @@
       "syncDesktopName": true,
       "icon": "build/icon.png",
       "category": "AudioVideo",
+      "artifactName": "live-studio-linux-${version}-x86_64.${ext}",
       "executableName": "live-studio-linux"
     }
   }

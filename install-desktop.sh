@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_ID=io.github.averagenative.livestudiolinux
-APPIMAGE_SRC=$(ls dist/LIVE\ Studio\ for\ Linux-*.AppImage | sort -V | tail -1)
+APPIMAGE_SRC=$(ls dist/live-studio-linux-*-x86_64.AppImage | sort -V | tail -1)
 APPIMAGE_DEST="$HOME/Applications/live-studio-linux-x86_64.AppImage"
 ICON_DEST="$HOME/.local/share/icons/hicolor/512x512/apps/$APP_ID.png"
 DESKTOP_DEST="$HOME/.local/share/applications/$APP_ID.desktop"

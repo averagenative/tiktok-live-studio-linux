@@ -131,6 +131,7 @@ For the request details, see [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 - `make check` runs a syntax check and the unit tests (`node --test`).
 - `make hooks` sets `core.hooksPath` to `.githooks`, so `git push` runs `make check` first.
+- `make release` builds the AppImage, writes `SHA256SUMS`, and creates or updates a draft GitHub release for the version in `package.json`, with notes from that version's section of `CHANGELOG.md`. Publish the draft on GitHub when it's ready. `make release DRY_RUN=1` builds without touching GitHub.
 - `scripts/obs-sandbox.sh` starts a throwaway OBS on a virtual display (Xvfb) with its own config and an unauthenticated obs-websocket on port 4466, for testing the OBS automation without touching your real OBS.
 - `scripts/make-obs-assets.sh` regenerates the scene artwork in `src/obs-assets/` with ImageMagick.
 - The code is plain CommonJS with no build step: `src/main.js` (Electron main process), `src/tiktok.js` (webcast API client), `src/obs.js` (obs-websocket 5 client), `src/session.js` (the LIVE lifecycle), and `src/renderer/` (UI).

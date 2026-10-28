@@ -1,7 +1,7 @@
 APP_ID := io.github.averagenative.livestudiolinux
 VERSION = $(shell node -p "require('./package.json').version")
 
-.PHONY: check test lint run appimage install uninstall hooks
+.PHONY: check test lint run appimage release install uninstall hooks
 
 check: lint test
 
@@ -16,6 +16,10 @@ run:
 
 appimage: check
 	npx electron-builder --linux AppImage
+
+# Draft GitHub release for the package.json version; DRY_RUN=1 skips GitHub.
+release:
+	DRY_RUN=$(DRY_RUN) scripts/release.sh
 
 install:
 	./install-desktop.sh
