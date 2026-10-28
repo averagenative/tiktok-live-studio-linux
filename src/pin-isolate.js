@@ -1,14 +1,9 @@
 'use strict';
 
-// Page script for the pinned window: hide the page layout on a TikTok LIVE
-// page except the side panel (viewers and comments), stretch that panel over
-// the whole window on a translucent backing, and leave the page's pop-up
-// menus and dialogs working. Display only; it reads nothing from the page.
-//
-// The panel is found by shape, not by TikTok's class names (which change):
-// the biggest tall column in the right part of the page. The page keeps its
-// desktop layout in narrow windows and overflows sideways, so positions are
-// measured against the page width rather than the window width.
+// Page script for the pinned window: on a TikTok LIVE page, hide the layout
+// beside the side panel (viewers and comments), stretch that panel over the
+// whole window on a translucent backing, and leave the page's pop-up menus
+// and dialogs working. Display only; it reads nothing from the page.
 
 const ISOLATE_SCRIPT = `(() => {
   if (window.__lslAlpha !== undefined) document.documentElement.style.setProperty('--lsl-alpha', String(window.__lslAlpha));
@@ -26,90 +21,85 @@ const ISOLATE_SCRIPT = `(() => {
     html.lsl-iso .lsl-panel *:not(input):not(textarea):not(button):not(img):not(video):not(svg):not(path) {
       background-color: transparent !important; }\`;
   document.documentElement.append(style);
-  // The layout's real width: logged in, the page can overflow inside an
-  // inner scrolling box rather than the document, so take the rightmost
-  // edge of the layout itself.
-  const layoutWidth = (els) => {
-    let right = Math.max(window.innerWidth, document.documentElement.scrollWidth, document.body.scrollWidth);
-    for (const el of els) {
-      const r = el.getBoundingClientRect();
-      if (r.height > 0) right = Math.max(right, r.right + window.scrollX);
+
+  // 1. The panel, by the test labels TikTok puts on it (data-e2e). These are
+  //    made for automation and change far less often than layout or class
+  //    names.
+  const byLabel = () => {
+    for (const label of ['public-screen-container', 'public-screen-live-chat-slot']) {
+      const el = document.querySelector('[data-e2e="' + label + '"]');
+      if (el && el.getBoundingClientRect().height > 0) return el;
     }
-    return right;
+    // Or the nearest element holding both the chat list and the comment box.
+    const chat = document.querySelector('[data-e2e="live-chat-container"]');
+    const input = document.querySelector('[data-e2e="live-chat-input-container"]');
+    if (chat && input) {
+      for (let p = chat.parentElement; p && p !== document.body; p = p.parentElement) if (p.contains(input)) return p;
+    }
+    return null;
   };
-  let lastW = window.innerWidth;
-  const pageSize = () => [lastW, window.innerHeight];
-  const findPanel = () => {
-    const els = [...document.body.querySelectorAll('div, aside, section')];
-    const W = layoutWidth(els);
+  // 2. Fallback if TikTok drops those labels: the biggest tall column on the
+  //    right of the layout.
+  const byShape = () => {
     const H = window.innerHeight;
-    lastW = W;
+    let W = window.innerWidth;
+    const tall = [];
+    for (const el of document.body.querySelectorAll('div, aside, section')) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height < H * 0.6) continue;
+      tall.push([el, r]);
+      W = Math.max(W, r.right + window.scrollX);
+    }
     let best = null;
     let bestArea = 0;
-    for (const el of els) {
-      const r = el.getBoundingClientRect();
+    for (const [el, r] of tall) {
       const left = r.left + window.scrollX;
-      if (left < W * 0.55 || r.width < W * 0.18 || r.width > W * 0.48 || r.height < H * 0.6) continue;
+      if (left < W * 0.55 || r.width < W * 0.18 || r.width > W * 0.48) continue;
       if (r.width * r.height > bestArea) { best = el; bestArea = r.width * r.height; }
     }
     return best;
   };
-  // Menus, dialogs, and tooltips (the gear's moderator menu, for one) live in
-  // their own small floating layers outside the panel: leave those visible
-  // and hide only the big blocks of page layout.
-  const OVERLAY_NAME = /modal|popup|popover|dropdown|tooltip|dialog|menu|portal|toast|tippy|floating|mask|drawer|sheet/i;
-  const LAYOUT_NAME = /nav|sidebar|header|footer|banner/i;
-  const isOverlay = (el, depth = 2) => {
-    const role = el.getAttribute('role') || '';
-    if (/dialog|menu|listbox|tooltip/.test(role) || el.getAttribute('aria-modal') === 'true') return true;
-    const name = String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className) + ' ' + el.id;
-    if (LAYOUT_NAME.test(name)) return false;
-    if (OVERLAY_NAME.test(name)) return true;
-    const cs = getComputedStyle(el);
-    if (cs.position === 'fixed' || cs.position === 'absolute') {
-      const r = el.getBoundingClientRect();
-      const [W, H] = pageSize();
-      if (r.width * r.height < W * H * 0.25) return true;
-    }
-    // A plain container (a "portal") holding a pop-up counts as one.
-    return depth > 0 && [...el.children].some((c) => isOverlay(c, depth - 1));
-  };
+
+  // Hide everything beside the panel that exists when the view applies.
+  // Anything TikTok adds later (its menus, dialogs, and tooltips, like the
+  // Viewers gear's moderator menu) stays visible: nothing is guessed from
+  // names or shapes.
   let panel = null;
-  let chain = [];
-  const hideLayout = () => {
-    for (const node of [panel, ...chain]) {
+  let info = null;
+  let queued = false;
+  const reset = () => {
+    document.querySelectorAll('.lsl-panel, .lsl-anc, .lsl-hide').forEach((e) => e.classList.remove('lsl-panel', 'lsl-anc', 'lsl-hide'));
+    document.documentElement.classList.remove('lsl-iso');
+  };
+  const apply = () => {
+    if (panel && panel.isConnected) return info;
+    reset();
+    let how = 'label';
+    panel = byLabel();
+    if (!panel) { panel = byShape(); how = 'shape'; }
+    if (!panel) return false;
+    const r = panel.getBoundingClientRect();
+    info = { found: how, width: Math.round(r.width), height: Math.round(r.height) };
+    for (let node = panel; node && node !== document.documentElement; node = node.parentElement) {
+      if (node !== panel) node.classList.add('lsl-anc');
       const parent = node.parentElement;
-      if (!parent) continue;
+      if (!parent) break;
       for (const sib of parent.children) {
-        if (sib === node || chain.includes(sib) || sib.classList.contains('lsl-hide')) continue;
-        if (/^(SCRIPT|STYLE|LINK|META)$/.test(sib.tagName)) continue;
+        if (sib === node || /^(SCRIPT|STYLE|LINK|META|HEAD)$/.test(sib.tagName)) continue;
         if (!sib.childElementCount && !sib.textContent.trim()) continue;
-        if (isOverlay(sib)) continue;
         sib.classList.add('lsl-hide');
       }
     }
+    panel.classList.add('lsl-panel');
+    document.documentElement.classList.add('lsl-iso');
+    window.scrollTo(0, 0);
+    return info;
   };
-  let queued = false;
-  const apply = () => {
-    if (!panel || !panel.isConnected) {
-      document.querySelectorAll('.lsl-panel, .lsl-anc, .lsl-hide').forEach((e) => e.classList.remove('lsl-panel', 'lsl-anc', 'lsl-hide'));
-      document.documentElement.classList.remove('lsl-iso');
-      panel = findPanel();
-      chain = [];
-      if (!panel) return false;
-      for (let p = panel.parentElement; p && p !== document.documentElement; p = p.parentElement) chain.push(p);
-      panel.classList.add('lsl-panel');
-      chain.forEach((p) => p.classList.add('lsl-anc'));
-      document.documentElement.classList.add('lsl-iso');
-      window.scrollTo(0, 0);
-    }
-    hideLayout();
-    return true;
-  };
+  // Re-apply if TikTok replaces the panel (it re-renders when a LIVE starts).
   new MutationObserver(() => {
     if (queued) return;
     queued = true;
-    setTimeout(() => { queued = false; apply(); }, 250);
+    setTimeout(() => { queued = false; if (!panel || !panel.isConnected) apply(); }, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
   window.__lslIsolate = apply;
   return apply();

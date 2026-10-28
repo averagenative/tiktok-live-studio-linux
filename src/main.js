@@ -441,12 +441,14 @@ function isolatePinPanel() {
   delays.forEach((delay, i) => {
     setTimeout(async () => {
       if (found || !pinAlive()) return;
+      let picked = null;
       try {
-        found = !!(await pinView.webContents.executeJavaScript(isolateScript(pinAlpha()), true));
+        picked = await pinView.webContents.executeJavaScript(isolateScript(pinAlpha()), true);
+        found = !!picked;
       } catch (e) {
         log('warn', `pinned window: panel script failed: ${e.message}`);
       }
-      if (found) log('app', 'pinned window: showing the viewers & comments panel');
+      if (found) log('app', `pinned window: showing the viewers & comments panel ${JSON.stringify(picked)}`);
       else if (i === delays.length - 1) {
         const d = await pinView.webContents.executeJavaScript(DIAG_SCRIPT, true).catch((e) => ({ error: e.message }));
         log('warn', `pinned window: couldn't find the comments panel yet (it keeps watching); layout ${JSON.stringify(d)}`);
