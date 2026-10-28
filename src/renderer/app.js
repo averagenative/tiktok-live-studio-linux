@@ -127,6 +127,7 @@ function renderSettings() {
   $('robot').checked = !!s.robotAvatar;
   $('pin-opacity').value = Math.round((s.pinOpacity ?? 0.85) * 100);
   $('pin-click').checked = !!s.pinClickThrough;
+  $('pin-panel').checked = s.pinPanelOnly !== false;
   if (!$('pin-url').value) {
     const handle = view.account?.account?.username;
     $('pin-url').value = s.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
@@ -254,6 +255,10 @@ function wire() {
   $('pin-opacity').addEventListener('input', (e) => act(null, async () => {
     view.settings = { ...view.settings, pinOpacity: Number(e.target.value) / 100 };
     renderPin(await api.pinSet({ opacity: Number(e.target.value) / 100 }));
+  }));
+  $('pin-panel').addEventListener('change', (e) => act(null, async () => {
+    view.settings = { ...view.settings, pinPanelOnly: e.target.checked };
+    renderPin(await api.pinSet({ panelOnly: e.target.checked }));
   }));
   $('pin-click').addEventListener('change', (e) => act(null, async () => {
     view.settings = { ...view.settings, pinClickThrough: e.target.checked };

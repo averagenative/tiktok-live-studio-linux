@@ -14,7 +14,7 @@ You need an account that TikTok has granted LIVE Studio access. Going LIVE from 
 - Drive OBS through obs-websocket 5: set the RTMP server and key, start and stop the stream, and switch to the **TikTok Vertical** profile while LIVE.
 - **Set up TikTok scenes** builds a 1080x1920 NVENC profile and a styled scene collection (Starting Soon, Camera, Screen + Camera, Screen + Robot, Screen, Be Right Back, Ending) with noise suppression, a compressor, and a limiter on the mic. Running it again repairs whatever is missing and leaves your own sources alone.
 - A voice-reactive robot avatar that can replace your webcam, driven by your mic level from OBS.
-- A pinned window for keeping any web page, such as your LIVE page, on top of your game.
+- A pinned window for keeping any web page, such as your LIVE page, on top of your game, with an option to show only the viewers and comments panel of a TikTok LIVE page.
 - Five themes, including a light one.
 
 ### Install

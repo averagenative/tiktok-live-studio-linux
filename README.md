@@ -96,7 +96,7 @@ To stay off camera, select **Robot avatar instead of webcam** in the **OBS** pan
 
 ## Pinned window
 
-The **Pinned window** panel opens any web page in its own window that you can keep on top of your game, for example your own LIVE page (it's filled in after you log in). Click **Open pinned window**, then click the new window, press **Alt+Space**, and choose **Always on Top**. The app remembers the address, size, and position. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen.
+The **Pinned window** panel opens any web page in its own window that you can keep on top of your game, for example your own LIVE page (it's filled in after you log in). Click **Open pinned window**, then click the new window, press **Alt+Space** (or right-click its title bar), and choose **Always on Top**. On TikTok LIVE pages, **Only the viewers & comments panel** hides the rest of the page and stretches the side panel over the whole window, so a narrow window shows just the chat; clear it to see the full page. It only changes what the window displays. The app remembers the address, size, and position. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen.
 
 GNOME doesn't let native Wayland apps pin their own windows, which is why the pinned window uses GNOME's window menu. Starting the app with `LSL_X11=1` runs it through XWayland instead, where the pinned window keeps itself on top and offers opacity and click-through. On some hybrid Intel/NVIDIA laptops that mode fails to open windows at all.
 

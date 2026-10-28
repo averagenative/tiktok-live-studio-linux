@@ -9,6 +9,7 @@ const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
+const { ISOLATE_SCRIPT, isTikTokLivePage } = require('./pin-isolate');
 const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
 
 app.setName('LIVE Studio for Linux');
@@ -58,6 +59,7 @@ const DEFAULTS = {
   pinUrl: '',
   pinOpacity: 0.85,
   pinClickThrough: false,
+  pinPanelOnly: true,
   pinBounds: null,
   avatarMic: '',
   vertical: true,
@@ -420,9 +422,24 @@ ipcMain.handle('avatar:preview', wrap(async () => {
 let pinWin = null;
 let saveBoundsTimer = null;
 
+// On TikTok LIVE pages, show just the viewers/comments panel. The page
+// builds its panel after load, so try a few times; the page script also
+// re-applies itself when the page re-renders.
+function isolatePinPanel() {
+  if (!pinWin || pinWin.isDestroyed() || !settings.pinPanelOnly) return;
+  const wc = pinWin.webContents;
+  if (!isTikTokLivePage(wc.getURL())) return;
+  for (const delay of [0, 1500, 4000, 8000]) {
+    setTimeout(() => {
+      if (pinWin && !pinWin.isDestroyed()) pinWin.webContents.executeJavaScript(ISOLATE_SCRIPT, true).catch(() => {});
+    }, delay);
+  }
+}
+
 function pinState() {
   return {
     open: !!(pinWin && !pinWin.isDestroyed()),
+    panelOnly: settings.pinPanelOnly,
     opacity: settings.pinOpacity,
     clickThrough: settings.pinClickThrough,
     selfPin: X11,
@@ -473,6 +490,8 @@ function openPin(rawUrl) {
       }
     }, 500);
   };
+  pinWin.webContents.on('did-finish-load', isolatePinPanel);
+  pinWin.webContents.on('did-navigate-in-page', isolatePinPanel);
   pinWin.on('move', remember);
   pinWin.on('resize', remember);
   pinWin.on('closed', () => {
@@ -490,9 +509,17 @@ ipcMain.handle('pin:close', wrap(async () => {
   if (pinWin && !pinWin.isDestroyed()) pinWin.close();
   return pinState();
 }));
-ipcMain.handle('pin:set', wrap(async ({ opacity, clickThrough } = {}) => {
+ipcMain.handle('pin:set', wrap(async ({ opacity, clickThrough, panelOnly } = {}) => {
   if (opacity !== undefined) settings.pinOpacity = Math.min(1, Math.max(0.2, Number(opacity)));
   if (clickThrough !== undefined) settings.pinClickThrough = !!clickThrough;
+  if (panelOnly !== undefined && !!panelOnly !== settings.pinPanelOnly) {
+    settings.pinPanelOnly = !!panelOnly;
+    // Turning it on applies in place; turning it off needs the page back as it was.
+    if (pinWin && !pinWin.isDestroyed()) {
+      if (settings.pinPanelOnly) isolatePinPanel();
+      else pinWin.webContents.reload();
+    }
+  }
   saveSettings();
   applyPinLook();
   return pinState();
