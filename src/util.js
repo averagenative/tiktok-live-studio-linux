@@ -248,6 +248,18 @@ function studioApplyUrl({ userId = '0', lang = 'en' } = {}) {
   return `${STUDIO_APPLY_URL}?${q}`;
 }
 
+// Accept "example.com/page" as well as full URLs; only http(s) pages.
+function normalizeUrl(input) {
+  const s = String(input || '').trim();
+  if (!s) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
+    return /^https?:$/.test(u.protocol) && u.hostname ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 // A short, log-friendly view of a response's data: long arrays and strings cut down.
 function summarize(value, max = 700) {
   const seen = new WeakSet();
@@ -291,6 +303,7 @@ module.exports = {
   webcastHostForIdc,
   candidateWebcastHosts,
   summarize,
+  normalizeUrl,
   studioRequirements,
   studioApplyUrl,
   apiMessage,

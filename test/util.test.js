@@ -163,3 +163,12 @@ test('studioApplyUrl builds the official application page URL', () => {
   assert.equal(url.searchParams.get('aid'), '8311');
   assert.equal(url.searchParams.get('user_id'), '123');
 });
+
+test('normalizeUrl accepts bare hosts and http(s) URLs only', () => {
+  assert.equal(u.normalizeUrl('tiktok.com/@me/live'), 'https://tiktok.com/@me/live');
+  assert.equal(u.normalizeUrl(' https://example.com/x?y=1 '), 'https://example.com/x?y=1');
+  assert.equal(u.normalizeUrl('http://localhost:8080/'), 'http://localhost:8080/');
+  assert.equal(u.normalizeUrl('file:///etc/passwd'), null);
+  assert.equal(u.normalizeUrl('javascript:alert(1)'), null);
+  assert.equal(u.normalizeUrl(''), null);
+});

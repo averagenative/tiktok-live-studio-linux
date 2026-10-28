@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('ls', {
   obsSetup: () => call('obs:setup'),
   setRobot: (enabled) => call('obs:robot', enabled),
   previewRobot: () => call('avatar:preview'),
+  pinOpen: (url) => call('pin:open', url),
+  pinClose: () => call('pin:close'),
+  pinSet: (opts) => call('pin:set', opts),
   goLive: (form) => call('live:start', form),
   endLive: () => call('live:end'),
   markStreaming: () => call('live:mark-streaming'),
@@ -36,4 +39,5 @@ contextBridge.exposeInMainWorld('ls', {
   onSession: on('session'),
   onObs: on('obs'),
   onAccount: on('account'),
+  onPin: on('pin'),
 });

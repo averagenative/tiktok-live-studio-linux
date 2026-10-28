@@ -103,6 +103,13 @@ function renderObs() {
   renderLive();
 }
 
+function renderPin(p) {
+  view.pin = p || view.pin || { open: false };
+  show($('pin-open'), true);
+  $('pin-open').textContent = view.pin.open ? 'Load page' : 'Open pinned window';
+  show($('pin-close'), !!view.pin.open);
+}
+
 function renderSettings() {
   const s = view.settings;
   document.documentElement.dataset.theme = s.theme || 'dark';
@@ -113,6 +120,12 @@ function renderSettings() {
   $('drive-obs').checked = !!s.driveObs;
   $('use-profile').checked = !!s.useTikTokProfile;
   $('robot').checked = !!s.robotAvatar;
+  $('pin-opacity').value = Math.round((s.pinOpacity ?? 0.85) * 100);
+  $('pin-click').checked = !!s.pinClickThrough;
+  if (!$('pin-url').value) {
+    const handle = view.account?.account?.username;
+    $('pin-url').value = s.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
+  }
   $('vertical').checked = !!s.vertical;
   if (!$('title').value) $('title').value = s.lastTitle || '';
 }
@@ -231,6 +244,16 @@ function wire() {
     }
   }));
   $('robot-preview').addEventListener('click', (e) => act(e.target, () => api.previewRobot()));
+  $('pin-open').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinOpen($('pin-url').value))));
+  $('pin-close').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinClose())));
+  $('pin-opacity').addEventListener('input', (e) => act(null, async () => {
+    view.settings = { ...view.settings, pinOpacity: Number(e.target.value) / 100 };
+    renderPin(await api.pinSet({ opacity: Number(e.target.value) / 100 }));
+  }));
+  $('pin-click').addEventListener('change', (e) => act(null, async () => {
+    view.settings = { ...view.settings, pinClickThrough: e.target.checked };
+    renderPin(await api.pinSet({ clickThrough: e.target.checked }));
+  }));
   $('obs-setup').addEventListener('click', (e) => act(e.target, async () => {
     const el = $('setup-status');
     el.hidden = false;
@@ -276,7 +299,12 @@ function wire() {
   api.onLog(addLog);
   api.onSession((s) => { view.session = s; renderLive(); });
   api.onObs((o) => { view.obs = o; renderObs(); });
-  api.onAccount((a) => { view.account = a; renderAccount(); });
+  api.onAccount((a) => {
+    view.account = a;
+    renderAccount();
+    if (!$('pin-url').value && a.account?.username) $('pin-url').value = `https://www.tiktok.com/@${a.account.username}/live`;
+  });
+  api.onPin(renderPin);
 }
 
 async function init() {
@@ -286,6 +314,7 @@ async function init() {
   view.obs = st.obs;
   view.session = st.session;
   view.account = st.account;
+  renderPin(st.pin);
   renderSettings();
   renderAccount();
   renderObs();

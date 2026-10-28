@@ -142,6 +142,8 @@ main {
 }
 
 .card.wide { grid-column: 1 / -1; }
+#obs-card { grid-row: span 2; }
+#pin-card .grid2 { grid-template-columns: 1fr; }
 
 h2 {
   display: flex;
@@ -176,6 +178,7 @@ label > input, label > select { width: 100%; min-width: 0; }
 .grid2 > label, .grid3 > label { min-width: 0; }
 label.theme > select { width: auto; }
 
+input[type="range"] { padding: 0; accent-color: var(--accent); background: transparent; border: 0; }
 input[type="checkbox"] { padding: 0; width: 16px; height: 16px; accent-color: var(--accent); }
 input:focus, select:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 

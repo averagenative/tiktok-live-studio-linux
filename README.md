@@ -94,6 +94,12 @@ To stay off camera, select **Robot avatar instead of webcam** in the **OBS** pan
 - Click **Preview robot** to see it react to your voice. The preview needs the OBS connection, because the level comes from OBS.
 - It works only when OBS runs on the same machine as the app.
 
+## Pinned window
+
+The **Pinned window** panel keeps any web page on top of every other window, including a game, so you can keep your own LIVE page or anything else in view while you play. Enter the address (your LIVE page is filled in after you log in), click **Open pinned window**, and set the opacity. Select **Click-through** to send your clicks to the game underneath; clear it to move, resize, or scroll the window. The app remembers the address, size, and position.
+
+To keep itself on top on GNOME, the app runs through XWayland. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen. To run the app as a native Wayland client instead, start it with `LSL_WAYLAND=1`; the window then can't keep itself on top.
+
 ## Optional OBS extras
 
 These plugins and tools aren't required, but they work well with a TikTok setup on Fedora:

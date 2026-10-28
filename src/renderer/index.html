@@ -84,6 +84,22 @@
       <p class="muted small">In OBS: Tools, then WebSocket Server Settings. Enable the server and copy the password here.</p>
     </section>
 
+    <section class="card" id="pin-card">
+      <h2>Pinned window</h2>
+      <p class="muted small">Keeps any web page on top of everything, including your game. With click-through on, your clicks
+        go to the game underneath; turn it off here to move, resize, or scroll the window.</p>
+      <div class="grid2">
+        <label>Web page <input id="pin-url" spellcheck="false" placeholder="tiktok.com/@you/live"></label>
+        <label>Opacity <input id="pin-opacity" type="range" min="20" max="100" step="5"></label>
+      </div>
+      <div class="row">
+        <button id="pin-open" class="primary">Open pinned window</button>
+        <button id="pin-close" hidden>Close</button>
+        <label class="check"><input type="checkbox" id="pin-click"> Click-through</label>
+      </div>
+      <p class="muted small">If a fullscreen game still covers it, switch the game to borderless or windowed fullscreen.</p>
+    </section>
+
     <section class="card wide" id="live-card">
       <h2>Go LIVE</h2>
 

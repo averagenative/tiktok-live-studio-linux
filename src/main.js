@@ -9,9 +9,18 @@ const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
-const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl } = require('./util');
+const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
 
 app.setName('LIVE Studio for Linux');
+
+// GNOME only lets X11 windows keep themselves on top, which the pinned window
+// needs, so run through XWayland. LSL_WAYLAND=1 opts out.
+// Chromium's default GL under XWayland crashes the GPU process on hybrid
+// Intel/NVIDIA laptops; EGL works.
+if (process.platform === 'linux' && !process.env.LSL_WAYLAND) {
+  app.commandLine.appendSwitch('ozone-platform', 'x11');
+  app.commandLine.appendSwitch('use-gl', 'egl');
+}
 
 const PARTITION = 'persist:tiktok';
 const LOGIN_URL = 'https://www.tiktok.com/login';
@@ -44,6 +53,10 @@ const DEFAULTS = {
   driveObs: true,
   useTikTokProfile: true,
   robotAvatar: false,
+  pinUrl: '',
+  pinOpacity: 0.85,
+  pinClickThrough: false,
+  pinBounds: null,
   avatarMic: '',
   vertical: true,
   platform: 'mac',
@@ -280,6 +293,7 @@ function wrap(fn) {
 }
 
 ipcMain.handle('state:get', wrap(async () => ({
+  pin: pinState(),
   settings: publicSettings(),
   obs: obsState(),
   session: live.snapshot(),
@@ -289,7 +303,7 @@ ipcMain.handle('state:get', wrap(async () => ({
 })));
 
 ipcMain.handle('settings:set', wrap(async (patch) => {
-  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'robotAvatar', 'vertical', 'language', 'lastTitle', 'lastTopicId'];
+  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'robotAvatar', 'vertical', 'language', 'lastTitle', 'lastTopicId', 'pinUrl'];
   for (const k of allowed) if (k in patch) settings[k] = patch[k];
   if ('obsPassword' in patch) setObsPassword(patch.obsPassword);
   saveSettings();
@@ -397,6 +411,84 @@ ipcMain.handle('avatar:preview', wrap(async () => {
     backgroundColor: '#0d0f14', webPreferences: { contextIsolation: true, sandbox: true },
   });
   previewWin.loadURL(`${avatar.url}?preview=1`);
+}));
+
+// ---- pinned window: any web page kept on top of everything -----------------
+
+let pinWin = null;
+let saveBoundsTimer = null;
+
+function pinState() {
+  return { open: !!(pinWin && !pinWin.isDestroyed()), opacity: settings.pinOpacity, clickThrough: settings.pinClickThrough };
+}
+
+function applyPinLook() {
+  if (!pinWin || pinWin.isDestroyed()) return;
+  pinWin.setOpacity(Math.min(1, Math.max(0.2, Number(settings.pinOpacity) || 1)));
+  pinWin.setIgnoreMouseEvents(!!settings.pinClickThrough, { forward: true });
+}
+
+function openPin(rawUrl) {
+  const url = normalizeUrl(rawUrl);
+  if (!url) throw new Error('Enter a web address, like tiktok.com/@you/live');
+  settings.pinUrl = url;
+  saveSettings();
+  if (pinWin && !pinWin.isDestroyed()) {
+    pinWin.loadURL(url);
+    pinWin.showInactive();
+    return pinState();
+  }
+  const area = screen.getPrimaryDisplay().workArea;
+  const b = settings.pinBounds || { width: 380, height: 600, x: area.x + area.width - 400, y: area.y + 80 };
+  pinWin = new BrowserWindow({
+    ...b,
+    minWidth: 220,
+    minHeight: 160,
+    title: 'Pinned - LIVE Studio for Linux',
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#0f1115',
+    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  pinWin.setAlwaysOnTop(true, 'screen-saver');
+  pinWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  pinWin.webContents.setUserAgent(BROWSER_UA);
+  pinWin.webContents.setWindowOpenHandler(({ url: next }) => {
+    if (/^https?:/.test(next)) pinWin.loadURL(next);
+    return { action: 'deny' };
+  });
+  const remember = () => {
+    clearTimeout(saveBoundsTimer);
+    saveBoundsTimer = setTimeout(() => {
+      if (pinWin && !pinWin.isDestroyed()) {
+        settings.pinBounds = pinWin.getBounds();
+        saveSettings();
+      }
+    }, 500);
+  };
+  pinWin.on('move', remember);
+  pinWin.on('resize', remember);
+  pinWin.on('closed', () => {
+    pinWin = null;
+    send('pin', pinState());
+  });
+  applyPinLook();
+  pinWin.loadURL(url);
+  log('app', `pinned window: ${new URL(url).host}`);
+  return pinState();
+}
+
+ipcMain.handle('pin:open', wrap(async (url) => openPin(url)));
+ipcMain.handle('pin:close', wrap(async () => {
+  if (pinWin && !pinWin.isDestroyed()) pinWin.close();
+  return pinState();
+}));
+ipcMain.handle('pin:set', wrap(async ({ opacity, clickThrough } = {}) => {
+  if (opacity !== undefined) settings.pinOpacity = Math.min(1, Math.max(0.2, Number(opacity)));
+  if (clickThrough !== undefined) settings.pinClickThrough = !!clickThrough;
+  saveSettings();
+  applyPinLook();
+  return pinState();
 }));
 
 ipcMain.handle('live:start', wrap(async ({ title, topicId }) => {
