@@ -64,7 +64,8 @@ function renderAccount() {
   const sel = $('topic');
   const current = sel.value || view.settings.lastTopicId || '';
   sel.replaceChildren(new Option('No topic', ''));
-  for (const t of a.topics || []) sel.add(new Option(t.title, t.id));
+  const byTitle = (x, y) => x.title.localeCompare(y.title, undefined, { sensitivity: 'base', numeric: true });
+  for (const t of [...(a.topics || [])].sort(byTitle)) sel.add(new Option(t.title, t.id));
   sel.value = [...sel.options].some((o) => o.value === current) ? current : '';
   renderLive();
 }
