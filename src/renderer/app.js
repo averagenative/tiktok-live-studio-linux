@@ -127,6 +127,8 @@ function renderSettings() {
   $('robot').checked = !!s.robotAvatar;
   $('pin-click').checked = !!s.pinClickThrough;
   $('pin-panel').checked = s.pinPanelOnly !== false;
+  $('pin-alpha').value = Math.round((s.pinBgAlpha ?? 0.6) * 100);
+  show($('pin-alpha-row'), s.pinPanelOnly !== false);
   if (!$('pin-url').value) {
     const handle = view.account?.account?.username;
     $('pin-url').value = s.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
@@ -251,8 +253,13 @@ function wire() {
   $('robot-preview').addEventListener('click', (e) => act(e.target, () => api.previewRobot()));
   $('pin-open').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinOpen($('pin-url').value))));
   $('pin-close').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinClose())));
+  $('pin-alpha').addEventListener('input', (e) => act(null, async () => {
+    view.settings = { ...view.settings, pinBgAlpha: Number(e.target.value) / 100 };
+    renderPin(await api.pinSet({ bgAlpha: Number(e.target.value) / 100 }));
+  }));
   $('pin-panel').addEventListener('change', (e) => act(null, async () => {
     view.settings = { ...view.settings, pinPanelOnly: e.target.checked };
+    show($('pin-alpha-row'), e.target.checked);
     renderPin(await api.pinSet({ panelOnly: e.target.checked }));
   }));
   $('pin-click').addEventListener('change', (e) => act(null, async () => {

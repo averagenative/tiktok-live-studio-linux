@@ -88,14 +88,16 @@
       <h2>Pinned window</h2>
       <p class="muted small">Opens any web page in its own window that you can keep on top of your game.</p>
       <label>Web page <input id="pin-url" spellcheck="false" placeholder="tiktok.com/@you/live"></label>
+      <label id="pin-alpha-row">Panel background <input id="pin-alpha" type="range" min="0" max="100" step="5"></label>
       <div class="row">
         <button id="pin-open" class="primary">Open pinned window</button>
         <button id="pin-close" hidden>Close</button>
         <label class="check"><input type="checkbox" id="pin-panel"> Only the viewers &amp; comments panel</label>
         <label class="check x11-only" hidden><input type="checkbox" id="pin-click"> Click-through</label>
       </div>
-      <p class="muted small" id="pin-hint">To keep it on top: click the pinned window, press <b>Alt+Space</b>, and choose
-        <b>Always on Top</b>. If a fullscreen game still covers it, switch the game to borderless or windowed fullscreen.</p>
+      <p class="muted small" id="pin-hint">Drag the bar at the top to move it and the corner grip to resize it. To keep it on
+        top: click the pinned window, press <b>Alt+Space</b>, and choose <b>Always on Top</b>. If a fullscreen game still
+        covers it, switch the game to borderless or windowed fullscreen.</p>
     </section>
 
     <section class="card wide" id="live-card">

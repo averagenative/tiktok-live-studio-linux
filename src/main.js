@@ -3,13 +3,13 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
-const { app, BrowserWindow, ipcMain, session, clipboard, shell, screen, safeStorage } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, clipboard, shell, screen, safeStorage } = require('electron');
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
-const { ISOLATE_SCRIPT, isTikTokLivePage } = require('./pin-isolate');
+const { isolateScript, alphaScript, isTikTokLivePage } = require('./pin-isolate');
 const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
 
 app.setName('LIVE Studio for Linux');
@@ -59,6 +59,7 @@ const DEFAULTS = {
   pinUrl: '',
   pinClickThrough: false,
   pinPanelOnly: true,
+  pinBgAlpha: 0.6,
   pinBounds: null,
   avatarMic: '',
   vertical: true,
@@ -417,36 +418,50 @@ ipcMain.handle('avatar:preview', wrap(async () => {
 }));
 
 // ---- pinned window: any web page kept on top of everything -----------------
+// A frameless, transparent window: our own thin shell (drag bar, reload,
+// close, resize grip) with the web page in a transparent view under it, so a
+// panel-only TikTok page can sit over the game on a see-through backing.
 
+const PIN_BAR = 28;
 let pinWin = null;
+let pinView = null;
 let saveBoundsTimer = null;
+
+const pinAlive = () => !!(pinWin && !pinWin.isDestroyed() && pinView && !pinView.webContents.isDestroyed());
+const pinAlpha = () => Math.min(1, Math.max(0, Number(settings.pinBgAlpha ?? 0.6)));
 
 // On TikTok LIVE pages, show just the viewers/comments panel. The page
 // builds its panel after load, so try a few times; the page script also
 // re-applies itself when the page re-renders.
 function isolatePinPanel() {
-  if (!pinWin || pinWin.isDestroyed() || !settings.pinPanelOnly) return;
-  const wc = pinWin.webContents;
-  if (!isTikTokLivePage(wc.getURL())) return;
+  if (!pinAlive() || !settings.pinPanelOnly) return;
+  if (!isTikTokLivePage(pinView.webContents.getURL())) return;
   for (const delay of [0, 1500, 4000, 8000]) {
     setTimeout(() => {
-      if (pinWin && !pinWin.isDestroyed()) pinWin.webContents.executeJavaScript(ISOLATE_SCRIPT, true).catch(() => {});
+      if (pinAlive()) pinView.webContents.executeJavaScript(isolateScript(pinAlpha()), true).catch(() => {});
     }, delay);
   }
 }
 
 function pinState() {
   return {
-    open: !!(pinWin && !pinWin.isDestroyed()),
+    open: pinAlive(),
     panelOnly: settings.pinPanelOnly,
+    bgAlpha: pinAlpha(),
     clickThrough: settings.pinClickThrough,
     selfPin: X11,
   };
 }
 
 function applyPinLook() {
-  if (!pinWin || pinWin.isDestroyed() || !X11) return;
+  if (!pinAlive() || !X11) return;
   pinWin.setIgnoreMouseEvents(!!settings.pinClickThrough, { forward: true });
+}
+
+function layoutPinView() {
+  if (!pinAlive()) return;
+  const [w, h] = pinWin.getContentSize();
+  pinView.setBounds({ x: 0, y: PIN_BAR, width: w, height: Math.max(0, h - PIN_BAR) });
 }
 
 function openPin(rawUrl) {
@@ -454,30 +469,46 @@ function openPin(rawUrl) {
   if (!url) throw new Error('Enter a web address, like tiktok.com/@you/live');
   settings.pinUrl = url;
   saveSettings();
-  if (pinWin && !pinWin.isDestroyed()) {
-    pinWin.loadURL(url);
+  if (pinAlive()) {
+    pinView.webContents.loadURL(url);
     pinWin.showInactive();
     return pinState();
   }
-  const area = screen.getPrimaryDisplay().workArea;
-  const b = settings.pinBounds || { width: 380, height: 600, x: area.x + area.width - 400, y: area.y + 80 };
+  const b = settings.pinBounds || {};
   pinWin = new BrowserWindow({
-    ...b,
+    width: b.width || 380,
+    height: b.height || 600,
+    ...(Number.isFinite(b.x) && Number.isFinite(b.y) ? { x: b.x, y: b.y } : {}),
     minWidth: 220,
     minHeight: 160,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
     title: 'Pinned - LIVE Studio for Linux',
     alwaysOnTop: true,
-    autoHideMenuBar: true,
-    backgroundColor: '#0f1115',
-    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: {
+      preload: path.join(__dirname, 'pin-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true,
+    },
   });
   pinWin.setAlwaysOnTop(true, 'screen-saver');
   pinWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  pinWin.webContents.setUserAgent(BROWSER_UA);
-  pinWin.webContents.setWindowOpenHandler(({ url: next }) => {
-    if (/^https?:/.test(next)) pinWin.loadURL(next);
+  pinWin.loadFile(path.join(__dirname, 'pin', 'shell.html'));
+
+  pinView = new WebContentsView({
+    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  pinView.setBackgroundColor('#00000000');
+  pinWin.contentView.addChildView(pinView);
+  const wc = pinView.webContents;
+  wc.setUserAgent(BROWSER_UA);
+  wc.setWindowOpenHandler(({ url: next }) => {
+    if (/^https?:/.test(next)) wc.loadURL(next);
     return { action: 'deny' };
   });
+  wc.on('did-finish-load', isolatePinPanel);
+  wc.on('did-navigate-in-page', isolatePinPanel);
+
   const remember = () => {
     clearTimeout(saveBoundsTimer);
     saveBoundsTimer = setTimeout(() => {
@@ -487,16 +518,22 @@ function openPin(rawUrl) {
       }
     }, 500);
   };
-  pinWin.webContents.on('did-finish-load', isolatePinPanel);
-  pinWin.webContents.on('did-navigate-in-page', isolatePinPanel);
+  pinWin.on('resize', () => {
+    layoutPinView();
+    remember();
+  });
   pinWin.on('move', remember);
-  pinWin.on('resize', remember);
+  pinWin.on('close', () => {
+    if (pinView && !pinView.webContents.isDestroyed()) pinView.webContents.close();
+  });
   pinWin.on('closed', () => {
+    pinView = null;
     pinWin = null;
     send('pin', pinState());
   });
+  layoutPinView();
   applyPinLook();
-  pinWin.loadURL(url);
+  wc.loadURL(url);
   log('app', `pinned window: ${new URL(url).host}`);
   return pinState();
 }
@@ -506,20 +543,40 @@ ipcMain.handle('pin:close', wrap(async () => {
   if (pinWin && !pinWin.isDestroyed()) pinWin.close();
   return pinState();
 }));
-ipcMain.handle('pin:set', wrap(async ({ clickThrough, panelOnly } = {}) => {
+ipcMain.handle('pin:set', wrap(async ({ clickThrough, panelOnly, bgAlpha } = {}) => {
   if (clickThrough !== undefined) settings.pinClickThrough = !!clickThrough;
+  if (bgAlpha !== undefined) {
+    settings.pinBgAlpha = Math.min(1, Math.max(0, Number(bgAlpha)));
+    if (pinAlive() && settings.pinPanelOnly) {
+      pinView.webContents.executeJavaScript(alphaScript(pinAlpha()), true).catch(() => {});
+    }
+  }
   if (panelOnly !== undefined && !!panelOnly !== settings.pinPanelOnly) {
     settings.pinPanelOnly = !!panelOnly;
     // Turning it on applies in place; turning it off needs the page back as it was.
-    if (pinWin && !pinWin.isDestroyed()) {
+    if (pinAlive()) {
       if (settings.pinPanelOnly) isolatePinPanel();
-      else pinWin.webContents.reload();
+      else pinView.webContents.reload();
     }
   }
   saveSettings();
   applyPinLook();
   return pinState();
 }));
+
+// The pinned window's own shell: close, reload, and the resize grip.
+const fromPinShell = (e) => pinWin && !pinWin.isDestroyed() && e.sender === pinWin.webContents;
+ipcMain.on('pinshell:close', (e) => {
+  if (fromPinShell(e)) pinWin.close();
+});
+ipcMain.on('pinshell:reload', (e) => {
+  if (fromPinShell(e) && pinAlive()) pinView.webContents.reload();
+});
+ipcMain.handle('pinshell:size', (e) => (fromPinShell(e) ? pinWin.getSize() : [0, 0]));
+ipcMain.on('pinshell:resize', (e, { width, height } = {}) => {
+  if (!fromPinShell(e)) return;
+  pinWin.setSize(Math.max(220, Math.round(Number(width) || 0)), Math.max(160, Math.round(Number(height) || 0)));
+});
 
 ipcMain.handle('live:start', wrap(async ({ title, topicId }) => {
   settings.lastTitle = title || '';
@@ -618,7 +675,7 @@ function createMainWindow() {
   setTimeout(showMain, 3000);
 
   // Dev aid: LSL_CAPTURE=/path/shot.png [LSL_THEME=light] saves the window and quits.
-  if (process.env.LSL_CAPTURE) {
+  if (process.env.LSL_CAPTURE && !process.env.LSL_PIN_TEST) {
     mainWin.webContents.once('did-finish-load', () => setTimeout(async () => {
       const img = await mainWin.webContents.capturePage();
       fs.writeFileSync(process.env.LSL_CAPTURE, img.toPNG());
@@ -641,6 +698,19 @@ app.whenReady().then(async () => {
   createMainWindow();
   log('app', `started ${app.getVersion()} (Electron ${process.versions.electron})`);
   refreshAccount().catch((e) => log('warn', e.message));
+  // Dev aid: LSL_PIN_TEST=<url> LSL_CAPTURE=<dir> opens the pinned window,
+  // saves its shell and page captures, and quits.
+  if (process.env.LSL_PIN_TEST && process.env.LSL_CAPTURE) {
+    openPin(process.env.LSL_PIN_TEST);
+    setTimeout(async () => {
+      const dir = process.env.LSL_CAPTURE;
+      fs.writeFileSync(path.join(dir, 'pin-shell.png'), (await pinWin.webContents.capturePage()).toPNG());
+      fs.writeFileSync(path.join(dir, 'pin-view.png'), (await pinView.webContents.capturePage()).toPNG());
+      const iso = await pinView.webContents.executeJavaScript('document.documentElement.classList.contains("lsl-iso")');
+      console.log(`pin test: isolated=${iso} bounds=${JSON.stringify(pinView.getBounds())}`);
+      app.exit(0);
+    }, 12000);
+  }
   if (settings.driveObs) {
     obs.connect({ host: settings.obsHost, port: Number(settings.obsPort) || 4455, password: obsPassword() })
       .then(() => send('obs', obsState()))

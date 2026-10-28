@@ -1,5 +1,6 @@
 :root,
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0f1115;
   --panel: #171a21;
   --panel-2: #1f232c;
@@ -17,6 +18,7 @@
 }
 
 [data-theme="midnight"] {
+  color-scheme: dark;
   --bg: #000000;
   --panel: #0b0b0d;
   --panel-2: #141418;
@@ -34,6 +36,7 @@
 }
 
 [data-theme="synth"] {
+  color-scheme: dark;
   --bg: #14091f;
   --panel: #1e0f2e;
   --panel-2: #2a1540;
@@ -51,6 +54,7 @@
 }
 
 [data-theme="nord"] {
+  color-scheme: dark;
   --bg: #2e3440;
   --panel: #3b4252;
   --panel-2: #434c5e;
@@ -68,6 +72,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg: #f4f5f8;
   --panel: #ffffff;
   --panel-2: #eef0f4;
@@ -85,6 +90,13 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Scrollbars in the theme's colors (Chromium otherwise draws light ones). */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--panel-2); border: 3px solid var(--bg); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-corner { background: var(--bg); }
 
 html, body {
   margin: 0;

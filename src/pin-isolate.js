@@ -2,7 +2,8 @@
 
 // Page script for the pinned window: hide everything on a TikTok LIVE page
 // except the side panel (viewers and comments) and stretch that panel over
-// the whole window. Display only; it reads nothing from the page.
+// the whole window on a translucent backing. Display only; it reads nothing
+// from the page.
 //
 // The panel is found by shape, not by TikTok's class names (which change):
 // the biggest tall column in the right part of the page. The page keeps its
@@ -10,6 +11,7 @@
 // measured against the page width rather than the window width.
 
 const ISOLATE_SCRIPT = `(() => {
+  if (window.__lslAlpha !== undefined) document.documentElement.style.setProperty('--lsl-alpha', String(window.__lslAlpha));
   if (window.__lslIsolate) return window.__lslIsolate();
   const style = document.createElement('style');
   style.textContent = \`
@@ -18,7 +20,11 @@ const ISOLATE_SCRIPT = `(() => {
     html.lsl-iso .lsl-panel { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
       max-width: none !important; max-height: none !important; margin: 0 !important; transform: none !important;
       z-index: 2147483647 !important; border-radius: 0 !important; }
-    html.lsl-iso, html.lsl-iso body { overflow: hidden !important; }\`;
+    html.lsl-iso, html.lsl-iso body { overflow: hidden !important; background: transparent !important; }
+    html.lsl-iso .lsl-panel { background: rgba(14, 16, 22, var(--lsl-alpha, 0.6)) !important;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 1px rgba(0, 0, 0, 0.9); }
+    html.lsl-iso .lsl-panel *:not(input):not(textarea):not(button):not(img):not(video):not(svg):not(path) {
+      background-color: transparent !important; }\`;
   document.documentElement.append(style);
   const findPanel = () => {
     const W = Math.max(window.innerWidth, document.documentElement.scrollWidth);
@@ -56,6 +62,16 @@ const ISOLATE_SCRIPT = `(() => {
   return apply();
 })()`;
 
+// Panel backing alpha (0 = fully see-through, 1 = solid), then isolate.
+function alphaScript(alpha) {
+  const a = Math.min(1, Math.max(0, Number(alpha) || 0));
+  return `window.__lslAlpha = ${a}; document.documentElement.style.setProperty('--lsl-alpha', '${a}'); true`;
+}
+
+function isolateScript(alpha) {
+  return `${alphaScript(alpha)};\n${ISOLATE_SCRIPT}`;
+}
+
 // Only TikTok LIVE pages get the panel-only view.
 function isTikTokLivePage(url) {
   try {
@@ -66,4 +82,4 @@ function isTikTokLivePage(url) {
   }
 }
 
-module.exports = { ISOLATE_SCRIPT, isTikTokLivePage };
+module.exports = { ISOLATE_SCRIPT, isolateScript, alphaScript, isTikTokLivePage };

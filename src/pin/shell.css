@@ -1,0 +1,44 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font: 12px/1 system-ui, -apple-system, "Segoe UI", Cantarell, Ubuntu, sans-serif;
+  color: #e6e8ee;
+  user-select: none;
+}
+
+/* The drag bar. The page view sits right under it. */
+.bar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  box-sizing: border-box;
+  background: rgba(15, 17, 21, 0.82);
+  border-bottom: 1px solid rgba(37, 244, 238, 0.35);
+  border-radius: 8px 8px 0 0;
+}
+
+.title { font-weight: 600; letter-spacing: .04em; color: #9aa1b2; }
+.spacer { flex: 1; }
+
+button, .grip {
+  -webkit-app-region: no-drag;
+  width: 24px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #c9ceda;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+button:hover { background: rgba(255, 255, 255, 0.1); }
+#close:hover { background: #fe2c55; color: #fff; }
+.grip { cursor: nwse-resize; color: #25f4ee; }
