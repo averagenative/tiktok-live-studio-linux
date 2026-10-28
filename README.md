@@ -68,7 +68,7 @@ After you connect, click **Set up TikTok scenes**. The app adds the following to
 
 - A **TikTok Vertical** profile: 1080x1920 at 30 fps, NVENC H.264 at 6000 kbps, and AAC audio at 160 kbps.
 - A **TikTok Vertical** scene collection with seven scenes: **Starting Soon**, **Camera**, **Screen + Camera**, **Screen + Robot**, **Screen**, **Be Right Back**, and **Ending**. **Screen + Robot** puts the game in a full-width window at the top and a large robot avatar below it. They use a dark background, neon-edged rounded frames for the webcam and screen, and your @handle in Montserrat.
-- Noise suppression, a compressor, and a limiter on your microphone.
+- Noise suppression, a compressor, and a limiter on your microphone. The `Mic` source uses your system's default input, so pick your microphone in GNOME **Settings > Sound > Input**. If you set a USB mic as preferred there, OBS uses it whenever it's plugged in and falls back to the built-in mic otherwise.
 
 During the setup, GNOME asks which window to share, and the webcam turns on. If the window capture doesn't get added, add it yourself: in OBS, select **Screen + Camera**, click **+** under **Sources**, choose **Window Capture (PipeWire)**, name it `Screen`, click **Open Selector**, and pick the game window. Then click **Set up TikTok scenes** again: it fits your `Screen` source into the frames and adds it to the other game scenes. To change any text, double-click the text source in OBS. With **Use the TikTok Vertical OBS profile while LIVE** selected, the app switches OBS to that profile when you go LIVE and switches back afterwards.
 
