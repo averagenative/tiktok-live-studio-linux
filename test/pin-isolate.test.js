@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ISOLATE_SCRIPT, isolateScript, alphaScript, isTikTokLivePage } = require('../src/pin-isolate');
+const { ISOLATE_SCRIPT, isolateScript, alphaScript, isTikTokLivePage, leavesLivePage } = require('../src/pin-isolate');
 
 test('panel-only view applies to TikTok LIVE pages only', () => {
   assert.ok(isTikTokLivePage('https://www.tiktok.com/@yourhandle/live'));
@@ -24,4 +24,14 @@ test('the page scripts are valid JavaScript and clamp the alpha', () => {
 test('the diagnostics script is valid JavaScript', () => {
   const { DIAG_SCRIPT } = require('../src/pin-isolate');
   assert.doesNotThrow(() => new Function(DIAG_SCRIPT));
+});
+
+test('links that leave a pinned LIVE page are spotted', () => {
+  const live = 'https://www.tiktok.com/@yourhandle/live';
+  assert.ok(leavesLivePage(live, 'https://livecenter.tiktok.com/moderator'));
+  assert.ok(leavesLivePage(live, 'https://www.tiktok.com/@someone'));
+  assert.ok(!leavesLivePage(live, 'https://www.tiktok.com/@yourhandle/live?enter_from=x'));
+  assert.ok(!leavesLivePage(live, `${live}#chat`));
+  assert.ok(!leavesLivePage('https://example.com/page', 'https://example.com/other'));
+  assert.ok(!leavesLivePage(live, 'not a url'));
 });

@@ -14,16 +14,20 @@
       <h1>LIVE Studio for Linux</h1>
       <span class="pill warn">unofficial</span>
     </div>
-    <label class="theme">
-      <span>Theme</span>
-      <select id="theme">
-        <option value="dark">Dark</option>
-        <option value="midnight">Midnight</option>
-        <option value="synth">Synth</option>
-        <option value="nord">Nord</option>
-        <option value="light">Light</option>
-      </select>
-    </label>
+    <div class="top-actions">
+      <button id="privacy" class="toggle" aria-pressed="false"
+              title="Hides your account, the OBS address, the pinned page address, stream details, and the log, for when you share your whole screen">Hide private info</button>
+      <label class="theme">
+        <span>Theme</span>
+        <select id="theme">
+          <option value="dark">Dark</option>
+          <option value="midnight">Midnight</option>
+          <option value="synth">Synth</option>
+          <option value="nord">Nord</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+    </div>
   </header>
 
   <p class="disclaimer">
@@ -61,8 +65,8 @@
     <section class="card" id="obs-card">
       <h2>OBS <span id="obs-dot" class="dot"></span><span id="obs-status" class="muted small"></span></h2>
       <div class="grid3">
-        <label>Host <input id="obs-host" spellcheck="false"></label>
-        <label>Port <input id="obs-port" type="number" min="1" max="65535"></label>
+        <label>Host <input id="obs-host" class="private-field" spellcheck="false"></label>
+        <label>Port <input id="obs-port" class="private-field" inputmode="numeric" spellcheck="false"></label>
         <label>Password <input id="obs-pass" type="password" autocomplete="off"></label>
       </div>
       <div class="row">
@@ -87,7 +91,7 @@
     <section class="card" id="pin-card">
       <h2>Pinned window</h2>
       <p class="muted small">Opens any web page in its own window that you can keep on top of your game.</p>
-      <label>Web page <input id="pin-url" spellcheck="false" placeholder="tiktok.com/@you/live"></label>
+      <label>Web page <input id="pin-url" class="private-field" spellcheck="false" placeholder="tiktok.com/@you/live"></label>
       <label id="pin-alpha-row">Panel background <input id="pin-alpha" type="range" min="0" max="100" step="5"></label>
       <div class="row">
         <button id="pin-open" class="primary">Open pinned window</button>
@@ -148,6 +152,7 @@
       <details>
         <summary><h2>Log</h2></summary>
         <div class="row"><button id="copy-log">Copy log</button></div>
+        <p class="private-note muted small">The log is hidden while private info is hidden. Copy log still copies all of it.</p>
         <ol id="log" class="log mono"></ol>
       </details>
     </section>

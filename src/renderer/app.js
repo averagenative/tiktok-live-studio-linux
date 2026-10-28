@@ -11,6 +11,22 @@ const view = {
 };
 let tick = null;
 
+// "Hide private info" swaps account names, addresses, and stream details for
+// placeholders (masked inputs and the hidden log are done in style.css).
+const HIDDEN = '\u2022'.repeat(8);
+const isPrivate = () => !!view.settings.privacy;
+
+function renderPrivacy() {
+  document.documentElement.toggleAttribute('data-private', isPrivate());
+  $('privacy').setAttribute('aria-pressed', String(isPrivate()));
+}
+
+// OBS errors name the address they tried ("Could not reach OBS at host:port").
+function hideHost(text) {
+  const host = view.settings.obsHost;
+  return isPrivate() && host ? String(text).split(host).join(HIDDEN) : text;
+}
+
 function show(el, on) {
   el.hidden = !on;
 }
@@ -44,9 +60,10 @@ function renderAccount() {
   show($('account-in'), a.loggedIn);
   if (a.loggedIn) {
     const acc = a.account || {};
-    $('nickname').textContent = acc.nickname || 'Logged in';
-    $('username').textContent = acc.username ? `@${acc.username}` : '';
-    if (acc.avatar) $('avatar').src = acc.avatar;
+    const priv = isPrivate();
+    $('nickname').textContent = priv ? 'Logged in' : acc.nickname || 'Logged in';
+    $('username').textContent = priv ? 'Account hidden' : acc.username ? `@${acc.username}` : '';
+    if (acc.avatar && !priv) $('avatar').src = acc.avatar;
     else $('avatar').removeAttribute('src');
     const ci = a.createInfo;
     const el = $('access');
@@ -96,7 +113,7 @@ function renderAccount() {
 function renderObs() {
   const o = view.obs;
   $('obs-dot').className = `dot${o.connected ? ' on' : o.error ? ' err' : ''}`;
-  $('obs-status').textContent = o.connected ? `connected (obs-websocket ${o.version})` : o.error ? o.error : 'not connected';
+  $('obs-status').textContent = o.connected ? `connected (obs-websocket ${o.version})` : o.error ? hideHost(o.error) : 'not connected';
   show($('obs-connect'), !o.connected);
   show($('obs-disconnect'), o.connected);
   $('obs-setup').disabled = !o.connected;
@@ -118,6 +135,7 @@ function renderPin(p) {
 function renderSettings() {
   const s = view.settings;
   document.documentElement.dataset.theme = s.theme || 'dark';
+  renderPrivacy();
   $('theme').value = s.theme || 'dark';
   $('obs-host').value = s.obsHost ?? '127.0.0.1';
   $('obs-port').value = s.obsPort ?? 4455;
@@ -171,9 +189,10 @@ function renderLive() {
     badge.textContent = st === 'live' ? 'LIVE' : 'PREPARING';
     badge.className = `badge${st === 'live' ? ' live' : ''}`;
     $('live-title').textContent = s.room?.title || '';
-    $('server').textContent = s.room?.server || '';
-    $('key').textContent = s.room?.keyMasked || '';
-    $('room').textContent = s.room?.roomId || '';
+    const priv = isPrivate();
+    $('server').textContent = priv ? HIDDEN : s.room?.server || '';
+    $('key').textContent = priv ? HIDDEN : s.room?.keyMasked || '';
+    $('room').textContent = priv ? HIDDEN : s.room?.roomId || '';
     const manual = !s.driveObs;
     show($('manual-hint'), manual && st === 'preparing');
     show($('mark'), manual && st === 'preparing');
@@ -217,6 +236,13 @@ function addLog(entry) {
 
 function wire() {
   $('theme').addEventListener('change', (e) => saveSetting({ theme: e.target.value }));
+  $('privacy').addEventListener('click', () => act(null, async () => {
+    view.settings = { ...view.settings, privacy: !isPrivate() };
+    renderPrivacy();
+    renderAccount();
+    renderObs();
+    await saveSetting({ privacy: view.settings.privacy });
+  }));
   $('login').addEventListener('click', (e) => act(e.target, () => api.login()));
   $('logout').addEventListener('click', (e) => act(e.target, () => api.logout()));
   $('apply-studio').addEventListener('click', (e) => act(e.target, () => api.applyStudio()));

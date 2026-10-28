@@ -148,4 +148,18 @@ function isTikTokLivePage(url) {
   }
 }
 
-module.exports = { ISOLATE_SCRIPT, DIAG_SCRIPT, isolateScript, alphaScript, isTikTokLivePage };
+// True when a link on a pinned LIVE page would take the window off that LIVE
+// (like the Viewers gear's Moderator settings); those open in their own
+// window instead. Query and hash changes on the same page stay put.
+function leavesLivePage(current, next) {
+  if (!isTikTokLivePage(current)) return false;
+  try {
+    const a = new URL(current);
+    const b = new URL(next);
+    return a.host !== b.host || a.pathname !== b.pathname;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { ISOLATE_SCRIPT, DIAG_SCRIPT, isolateScript, alphaScript, isTikTokLivePage, leavesLivePage };

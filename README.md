@@ -21,6 +21,7 @@ Version 0.1.0 has gone LIVE end to end with a real account: log in, create the r
 - Builds a styled vertical TikTok profile and scene collection in OBS with one click.
 - Can replace your webcam with a voice-reactive robot avatar.
 - Opens a pinned window that keeps a web page, such as your LIVE page's viewers and comments panel, on top of your game.
+- Hides your account, OBS address, and stream details with one click, for when you share your whole screen.
 
 OBS does all of the capture, scenes, and encoding. This app handles the TikTok side.
 
@@ -129,9 +130,22 @@ The **Pinned window** panel opens a web page in a small window that you can keep
 
 On TikTok LIVE pages, **Only the viewers & comments panel** hides the rest of the page and shows the side panel over the whole window on a see-through backing, so the game shows through behind the chat. **Panel background** sets how solid that backing is. Clear the option to see the full page. It only changes what the window displays.
 
+Links that leave your LIVE page, like **Moderator** in the Viewers gear menu, open in a separate window, so the pinned chat stays where it is.
+
 The pinned window is always muted. A LIVE page plays your own stream back a few seconds late, and without headphones OBS's **Desktop Audio** would capture it and loop it into your LIVE. The app remembers the address and size. GNOME decides where the window opens. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen.
 
 GNOME doesn't let native Wayland apps pin their own windows, which is why you pin it from GNOME's window menu. Starting the app with `LSL_X11=1` runs it through XWayland instead, where the pinned window keeps itself on top and offers click-through. On some hybrid Intel/NVIDIA laptops, that mode fails to open windows at all.
+
+## Hide private info
+
+If you share your whole screen, click **Hide private info** in the top bar before you go LIVE. While it's on, the main window:
+
+- Hides your account name, username, and profile picture.
+- Shows the OBS host and port, and the pinned window's web address, as dots.
+- Hides the RTMP server, stream key, and room ID. **Copy** still copies them.
+- Hides the log. **Copy log** still copies all of it.
+
+The setting stays on until you click the button again, including after you restart the app. It covers this app's main window only. TikTok's own pages, like the login window, show what they always show, so log in before you start sharing your screen.
 
 ## Optional OBS extras
 

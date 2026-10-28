@@ -9,7 +9,7 @@ const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
-const { isolateScript, alphaScript, isTikTokLivePage, DIAG_SCRIPT } = require('./pin-isolate');
+const { isolateScript, alphaScript, isTikTokLivePage, leavesLivePage, DIAG_SCRIPT } = require('./pin-isolate');
 const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
 
 app.setName('LIVE Studio for Linux');
@@ -50,6 +50,7 @@ if (!app.requestSingleInstanceLock()) {
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 const DEFAULTS = {
   theme: 'dark',
+  privacy: false,
   obsHost: '127.0.0.1',
   obsPort: 4455,
   obsPasswordEnc: '',
@@ -307,7 +308,7 @@ ipcMain.handle('state:get', wrap(async () => ({
 })));
 
 ipcMain.handle('settings:set', wrap(async (patch) => {
-  const allowed = ['theme', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'robotAvatar', 'vertical', 'language', 'lastTitle', 'lastTopicId', 'pinUrl'];
+  const allowed = ['theme', 'privacy', 'obsHost', 'obsPort', 'driveObs', 'useTikTokProfile', 'robotAvatar', 'vertical', 'language', 'lastTitle', 'lastTopicId', 'pinUrl'];
   for (const k of allowed) if (k in patch) settings[k] = patch[k];
   if ('obsPassword' in patch) setObsPassword(patch.obsPassword);
   saveSettings();
@@ -479,6 +480,31 @@ function layoutPinView() {
   pinView.setBounds({ x: 0, y: PIN_BAR, width: w, height: Math.max(0, h - PIN_BAR) });
 }
 
+// Pages the pinned window links to (like the Viewers gear's Moderator
+// settings) open in this ordinary window, so the pinned chat stays put.
+let sideWin = null;
+function openSideWindow(url) {
+  if (sideWin && !sideWin.isDestroyed()) {
+    sideWin.loadURL(url);
+    sideWin.show();
+    sideWin.focus();
+    return;
+  }
+  sideWin = new BrowserWindow({
+    width: 1100, height: 820, title: 'TikTok - LIVE Studio for Linux', autoHideMenuBar: true,
+    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  sideWin.webContents.setAudioMuted(true);
+  sideWin.webContents.setUserAgent(BROWSER_UA);
+  sideWin.webContents.setWindowOpenHandler(({ url: next }) => {
+    if (/^https?:/.test(next)) sideWin.loadURL(next);
+    return { action: 'deny' };
+  });
+  sideWin.on('closed', () => { sideWin = null; });
+  sideWin.loadURL(url);
+  log('app', `opened ${new URL(url).host} in its own window`);
+}
+
 function openPin(rawUrl) {
   const url = normalizeUrl(rawUrl);
   if (!url) throw new Error('Enter a web address, like tiktok.com/@you/live');
@@ -521,8 +547,13 @@ function openPin(rawUrl) {
   wc.setAudioMuted(true);
   wc.setUserAgent(BROWSER_UA);
   wc.setWindowOpenHandler(({ url: next }) => {
-    if (/^https?:/.test(next)) wc.loadURL(next);
+    if (/^https?:/.test(next)) openSideWindow(next);
     return { action: 'deny' };
+  });
+  wc.on('will-navigate', (e) => {
+    if (!leavesLivePage(wc.getURL(), e.url)) return;
+    e.preventDefault();
+    openSideWindow(e.url);
   });
   wc.on('did-finish-load', isolatePinPanel);
   wc.on('did-navigate-in-page', isolatePinPanel);

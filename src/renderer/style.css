@@ -125,6 +125,14 @@ html, body {
   background: linear-gradient(135deg, var(--accent), var(--live));
 }
 
+/* Hide private info: masks fields and hides the log for screen sharing. */
+.top-actions { display: flex; align-items: center; gap: 14px; }
+button.toggle[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 600; }
+html[data-private] .private-field { -webkit-text-security: disc; }
+html[data-private] #log { display: none; }
+.private-note { display: none; }
+html[data-private] .private-note { display: block; margin: 12px 0 0; }
+
 label.theme { flex-direction: row; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 
 .disclaimer {
