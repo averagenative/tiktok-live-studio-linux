@@ -210,9 +210,18 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
 
   const place = async (sceneName, sourceName, transform, timeoutMs) => {
     const present = (await itemsOf(sceneName)).find((i) => i.sourceName === sourceName);
-    if (present) return false;
+    if (present) {
+      // A source the user added by hand (e.g. their own "Screen" capture) still
+      // sits at OBS's default spot; give it our layout. Anything moved stays put.
+      if (transform && isDefaultTransform(present.sceneItemTransform)) {
+        await obs.call('SetSceneItemTransform', { sceneName, sceneItemId: present.sceneItemId, sceneItemTransform: transform });
+        return true;
+      }
+      return false;
+    }
     let sceneItemId;
     if (!inputKind.has(sourceName)) {
+      if (!defs[sourceName]?.kind) throw new Error(`no source kind for ${sourceName}`);
       const def = defs[sourceName];
       ({ sceneItemId } = await obs.call('CreateInput', {
         sceneName, inputName: sourceName, inputKind: def.kind, inputSettings: def.settings, sceneItemEnabled: true,
@@ -282,6 +291,12 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
 
   for (const w of warnings) say(`warning: ${w}`);
   return { profile: PROFILE, collection: COLLECTION, created: !existed, added, scenes: sceneNames, warnings };
+}
+
+function isDefaultTransform(t) {
+  if (!t) return false;
+  return t.positionX === 0 && t.positionY === 0 && t.scaleX === 1 && t.scaleY === 1 && !t.rotation
+    && (!t.boundsType || t.boundsType === 'OBS_BOUNDS_NONE');
 }
 
 // RemoveInput alone can leave the source in some scenes (seen on OBS 32.1),

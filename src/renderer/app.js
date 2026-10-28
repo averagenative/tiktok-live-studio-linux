@@ -196,7 +196,22 @@ function wire() {
   }));
   $('drive-obs').addEventListener('change', (e) => saveSetting({ driveObs: e.target.checked }));
   $('use-profile').addEventListener('change', (e) => saveSetting({ useTikTokProfile: e.target.checked }));
-  $('obs-setup').addEventListener('click', (e) => act(e.target, () => api.obsSetup()));
+  $('obs-setup').addEventListener('click', (e) => act(e.target, async () => {
+    const el = $('setup-status');
+    el.hidden = false;
+    el.className = 'status small';
+    el.textContent = 'Setting up OBS... if GNOME asks, pick the window or screen to share.';
+    try {
+      const r = await api.obsSetup();
+      const what = r.created ? 'Created the TikTok Vertical profile and scenes.' : `Repaired the TikTok Vertical scenes (${r.added} change${r.added === 1 ? '' : 's'}).`;
+      el.textContent = r.warnings.length ? `${what} Check: ${r.warnings.join('; ')}` : `${what} All set.`;
+      el.className = `status small ${r.warnings.length ? 'err' : 'ok'}`;
+    } catch (err) {
+      el.textContent = `Setup failed: ${err.message}`;
+      el.className = 'status small err';
+      throw err;
+    }
+  }));
   $('vertical').addEventListener('change', (e) => saveSetting({ vertical: e.target.checked }));
 
   $('go').addEventListener('click', (e) => act(e.target, async () => {

@@ -32,7 +32,11 @@ function fakeObs({ profiles = ['Untitled'], collections = ['Untitled'], special 
     GetInputKindList: () => ({ inputKinds: ['pipewire-window-capture-source', 'pipewire-screen-capture-source', 'v4l2_input'] }),
     GetInputList: () => ({ inputs: [...st.inputs].map(([inputName, inputKind]) => ({ inputName, inputKind })) }),
     GetSpecialInputs: () => st.special,
-    GetSceneItemList: ({ sceneName }) => ({ sceneItems: st.scenes.get(sceneName).map((i) => ({ ...i })) }),
+    GetSceneItemList: ({ sceneName }) => ({
+      sceneItems: st.scenes.get(sceneName).map((i) => ({
+        sceneItemTransform: { positionX: 10, positionY: 10, scaleX: 1, scaleY: 1, rotation: 0, boundsType: 'OBS_BOUNDS_NONE' }, ...i,
+      })),
+    }),
     CreateInput: ({ sceneName, inputName, inputKind }) => { st.inputs.set(inputName, inputKind); return addItem(sceneName, inputName); },
     CreateSceneItem: ({ sceneName, sourceName }) => addItem(sceneName, sourceName),
     SetInputName: ({ inputName, newInputName }) => {
@@ -168,4 +172,20 @@ test('setup refuses to run while OBS is streaming', async () => {
   const obs = fakeObs();
   obs.call = async (type) => (type === 'GetStreamStatus' ? { outputActive: true } : {});
   await assert.rejects(setupTikTok(obs, {}), /Stop streaming/);
+});
+
+test('a hand-added Screen at the default spot gets our layout; moved items are left alone', async () => {
+  const obs = fakeObs({ profiles: ['Untitled', 'TikTok Vertical'], collections: ['Untitled', 'TikTok Vertical'] });
+  const fresh = { positionX: 0, positionY: 0, scaleX: 1, scaleY: 1, rotation: 0, boundsType: 'OBS_BOUNDS_NONE' };
+  obs.st.scenes.set('Screen + Camera', [{ sourceName: 'Screen', sceneItemId: 700, sceneItemTransform: fresh }]);
+  obs.st.scenes.set('Camera', [{ sourceName: 'Webcam', sceneItemId: 701,
+    sceneItemTransform: { ...fresh, positionX: 300, positionY: 900 } }]);
+  obs.st.inputs.set('Screen', 'pipewire-screen-capture-source');
+  obs.st.inputs.set('Webcam', 'v4l2_input');
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a' });
+  const t = (id) => obs.calls.filter((c) => c[0] === 'SetSceneItemTransform' && c[1].sceneItemId === id);
+  assert.equal(t(700).length, 1, 'default-placed Screen is laid out');
+  assert.equal(t(700)[0][1].sceneItemTransform.boundsType, 'OBS_BOUNDS_SCALE_OUTER');
+  assert.equal(t(701).length, 0, 'moved Webcam is not touched');
+  assert.ok(order(obs, 'Screen').includes('Screen'), 'existing Screen input is added to the other scene');
 });
