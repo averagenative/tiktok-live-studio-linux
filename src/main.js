@@ -329,6 +329,7 @@ ipcMain.handle('account:apply-studio', wrap(async () => {
     width: 480, height: 860, parent: mainWin, title: 'Apply for LIVE Studio access', autoHideMenuBar: true,
     webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
+  applyWin.webContents.setAudioMuted(true);
   applyWin.webContents.setUserAgent(BROWSER_UA);
   applyWin.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\/([a-z0-9-]+\.)*tiktok\.com\//.test(url)) applyWin.loadURL(url);
@@ -515,6 +516,9 @@ function openPin(rawUrl) {
   pinView.setBackgroundColor('#00000000');
   pinWin.contentView.addChildView(pinView);
   const wc = pinView.webContents;
+  // Always muted: a LIVE page plays your own stream back a few seconds late,
+  // and without headphones OBS's Desktop Audio would loop it into the LIVE.
+  wc.setAudioMuted(true);
   wc.setUserAgent(BROWSER_UA);
   wc.setWindowOpenHandler(({ url: next }) => {
     if (/^https?:/.test(next)) wc.loadURL(next);

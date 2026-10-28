@@ -129,7 +129,7 @@ The **Pinned window** panel opens a web page in a small window that you can keep
 
 On TikTok LIVE pages, **Only the viewers & comments panel** hides the rest of the page and shows the side panel over the whole window on a see-through backing, so the game shows through behind the chat. **Panel background** sets how solid that backing is. Clear the option to see the full page. It only changes what the window displays.
 
-The app remembers the address and size. GNOME decides where the window opens. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen.
+The pinned window is always muted. A LIVE page plays your own stream back a few seconds late, and without headphones OBS's **Desktop Audio** would capture it and loop it into your LIVE. The app remembers the address and size. GNOME decides where the window opens. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen.
 
 GNOME doesn't let native Wayland apps pin their own windows, which is why you pin it from GNOME's window menu. Starting the app with `LSL_X11=1` runs it through XWayland instead, where the pinned window keeps itself on top and offers click-through. On some hybrid Intel/NVIDIA laptops, that mode fails to open windows at all.
 
@@ -150,6 +150,7 @@ These plugins aren't required, but they work well with a TikTok setup on Fedora:
 - **"TikTok refused to create the LIVE".** The **Log** panel shows the `status_code` and `logid` from TikTok. Open an issue with those, and remove anything personal first.
 - **OBS won't connect.** Make sure the WebSocket server is enabled in OBS and that the password matches.
 - **The game capture is missing after the setup.** Add a `Game Window` source as described in [Set up TikTok scenes](#set-up-tiktok-scenes).
+- **Your LIVE's audio echoes or loops.** Something is playing your LIVE back through your speakers, and OBS's **Desktop Audio** captures it. The pinned window is muted, but a browser tab with your LIVE open isn't: mute or close it. Without headphones, your mic also picks up game sound from the speakers; headphones avoid that.
 - **OBS doesn't hear your USB mic.** Make it the default input in GNOME **Settings > Sound > Input**. The `Mic` source follows the default.
 - **The LIVE ends by itself after a short time.** TikTok ends a room when the heartbeat stops. Check the log for `ping failed` lines, which point to a network problem.
 - **Login loops or shows a captcha.** Complete it in the login window. If it keeps failing, click **Log out** to clear the saved session and try again.
