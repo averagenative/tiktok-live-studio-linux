@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'; connect-src 'none'">
+  <title>LIVE Studio for Linux</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>LIVE Studio for Linux</h1>
+      <span class="pill warn">unofficial</span>
+    </div>
+    <label class="theme">
+      <span>Theme</span>
+      <select id="theme">
+        <option value="dark">Dark</option>
+        <option value="midnight">Midnight</option>
+        <option value="synth">Synth</option>
+        <option value="nord">Nord</option>
+        <option value="light">Light</option>
+      </select>
+    </label>
+  </header>
+
+  <p class="disclaimer">
+    Unofficial and unsupported. Not made by, affiliated with, or endorsed by TikTok or ByteDance.
+    It talks to TikTok the way the official LIVE Studio app does, which may break at any time or
+    go against TikTok's terms. Use it at your own risk.
+  </p>
+
+  <main>
+    <section class="card" id="account-card">
+      <h2>Account</h2>
+      <div id="account-out">
+        <p class="muted">Log in with your TikTok account. The login page is TikTok's own; this app
+          never sees your password, only the session cookie TikTok sets afterwards.</p>
+        <button id="login" class="primary">Log in to TikTok</button>
+      </div>
+      <div id="account-in" hidden>
+        <div class="who">
+          <img id="avatar" alt="" referrerpolicy="no-referrer">
+          <div>
+            <div id="nickname" class="strong"></div>
+            <div id="username" class="muted"></div>
+          </div>
+        </div>
+        <p id="access" class="status"></p>
+        <div class="row">
+          <button id="refresh">Refresh</button>
+          <button id="logout">Log out</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="obs-card">
+      <h2>OBS <span id="obs-dot" class="dot"></span><span id="obs-status" class="muted small"></span></h2>
+      <div class="grid3">
+        <label>Host <input id="obs-host" spellcheck="false"></label>
+        <label>Port <input id="obs-port" type="number" min="1" max="65535"></label>
+        <label>Password <input id="obs-pass" type="password" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <button id="obs-connect" class="primary">Connect</button>
+        <button id="obs-disconnect" hidden>Disconnect</button>
+      </div>
+      <label class="check"><input type="checkbox" id="drive-obs"> Drive OBS automatically (set server and key, start and stop the stream)</label>
+      <label class="check"><input type="checkbox" id="set-canvas"> Switch the OBS canvas to 1080x1920 while LIVE, then restore it</label>
+      <label class="check"><input type="checkbox" id="vertical"> Vertical (portrait) LIVE</label>
+      <p class="muted small">In OBS: Tools, then WebSocket Server Settings. Enable the server and copy the password here.</p>
+    </section>
+
+    <section class="card wide" id="live-card">
+      <h2>Go LIVE</h2>
+
+      <div id="live-idle">
+        <div class="grid2">
+          <label>Title <input id="title" maxlength="32" placeholder="What are you streaming?"></label>
+          <label>Topic <select id="topic"><option value="">No topic</option></select></label>
+        </div>
+        <div class="row">
+          <button id="go" class="go">Go LIVE</button>
+          <span id="go-hint" class="muted small"></span>
+        </div>
+      </div>
+
+      <div id="live-busy" hidden>
+        <p class="status"><span class="spinner"></span> <span id="busy-text"></span></p>
+      </div>
+
+      <div id="live-on" hidden>
+        <div class="live-head">
+          <span id="live-badge" class="badge">PREPARING</span>
+          <span id="elapsed" class="mono"></span>
+          <span id="live-title" class="strong"></span>
+        </div>
+        <p id="manual-hint" class="muted" hidden>Drive OBS is off. Paste the server and key into OBS
+          (Settings, then Stream, then Custom), start streaming, then click the button below.</p>
+        <div class="kv">
+          <span>Server</span><code id="server"></code><button data-copy="server">Copy</button>
+          <span>Stream key</span><code id="key"></code><button data-copy="key">Copy</button>
+          <span>Room</span><code id="room"></code><span></span>
+        </div>
+        <div class="row">
+          <button id="mark" class="primary" hidden>I've started streaming in OBS</button>
+          <button id="open-live" hidden>Open my LIVE page</button>
+          <button id="end" class="danger">End LIVE</button>
+        </div>
+      </div>
+
+      <div id="live-done" hidden>
+        <p id="done-text" class="status"></p>
+        <button id="again" class="primary">Back</button>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <details>
+        <summary><h2>Log</h2></summary>
+        <div class="row"><button id="copy-log">Copy log</button></div>
+        <ol id="log" class="log mono"></ol>
+      </details>
+    </section>
+  </main>
+
+  <footer class="muted small" id="footer"></footer>
+  <script src="app.js"></script>
+</body>
+</html>

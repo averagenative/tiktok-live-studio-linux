@@ -1,0 +1,34 @@
+{
+  "name": "tiktok-live-studio-linux",
+  "version": "0.1.0",
+  "description": "Unofficial, unsupported Linux client for going LIVE on TikTok through OBS",
+  "main": "src/main.js",
+  "desktopName": "io.github.averagenative.livestudiolinux.desktop",
+  "license": "MIT",
+  "author": "averagenative",
+  "homepage": "https://github.com/averagenative/tiktok-live-studio-linux",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "build": "electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "electron": "^45.1.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "io.github.averagenative.livestudiolinux",
+    "productName": "LIVE Studio for Linux",
+    "files": [
+      "src/**/*",
+      "build/icon.png"
+    ],
+    "linux": {
+      "target": "AppImage",
+      "syncDesktopName": true,
+      "icon": "build/icon.png",
+      "category": "AudioVideo",
+      "executableName": "live-studio-linux"
+    }
+  }
+}
