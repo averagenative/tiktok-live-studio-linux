@@ -26,12 +26,27 @@ const ISOLATE_SCRIPT = `(() => {
     html.lsl-iso .lsl-panel *:not(input):not(textarea):not(button):not(img):not(video):not(svg):not(path) {
       background-color: transparent !important; }\`;
   document.documentElement.append(style);
-  const pageSize = () => [Math.max(window.innerWidth, document.documentElement.scrollWidth), window.innerHeight];
+  // The layout's real width: logged in, the page can overflow inside an
+  // inner scrolling box rather than the document, so take the rightmost
+  // edge of the layout itself.
+  const layoutWidth = (els) => {
+    let right = Math.max(window.innerWidth, document.documentElement.scrollWidth, document.body.scrollWidth);
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0) right = Math.max(right, r.right + window.scrollX);
+    }
+    return right;
+  };
+  let lastW = window.innerWidth;
+  const pageSize = () => [lastW, window.innerHeight];
   const findPanel = () => {
-    const [W, H] = pageSize();
+    const els = [...document.body.querySelectorAll('div, aside, section')];
+    const W = layoutWidth(els);
+    const H = window.innerHeight;
+    lastW = W;
     let best = null;
     let bestArea = 0;
-    for (const el of document.body.querySelectorAll('div, aside, section')) {
+    for (const el of els) {
       const r = el.getBoundingClientRect();
       const left = r.left + window.scrollX;
       if (left < W * 0.55 || r.width < W * 0.18 || r.width > W * 0.48 || r.height < H * 0.6) continue;
@@ -100,6 +115,26 @@ const ISOLATE_SCRIPT = `(() => {
   return apply();
 })()`;
 
+// Layout numbers only (no page content), logged when the panel can't be found.
+const DIAG_SCRIPT = `(() => {
+  const els = [...document.body.querySelectorAll('div, aside, section')];
+  let right = 0;
+  const tall = [];
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    right = Math.max(right, r.right + window.scrollX);
+    if (r.height >= window.innerHeight * 0.6 && r.width > 0) tall.push([Math.round(r.left + window.scrollX), Math.round(r.width)]);
+  }
+  tall.sort((a, b) => b[0] - a[0]);
+  return {
+    inner: [window.innerWidth, window.innerHeight],
+    scroll: [document.documentElement.scrollWidth, document.body.scrollWidth],
+    layoutRight: Math.round(right),
+    elements: els.length,
+    tallRightmost: tall.slice(0, 6),
+  };
+})()`;
+
 // Panel backing alpha (0 = fully see-through, 1 = solid), then isolate.
 function alphaScript(alpha) {
   const a = Math.min(1, Math.max(0, Number(alpha) || 0));
@@ -120,4 +155,4 @@ function isTikTokLivePage(url) {
   }
 }
 
-module.exports = { ISOLATE_SCRIPT, isolateScript, alphaScript, isTikTokLivePage };
+module.exports = { ISOLATE_SCRIPT, DIAG_SCRIPT, isolateScript, alphaScript, isTikTokLivePage };

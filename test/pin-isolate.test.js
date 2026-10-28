@@ -20,3 +20,8 @@ test('the page scripts are valid JavaScript and clamp the alpha', () => {
   assert.match(alphaScript(-1), /'0'/);
   assert.match(alphaScript('junk'), /'0'/);
 });
+
+test('the diagnostics script is valid JavaScript', () => {
+  const { DIAG_SCRIPT } = require('../src/pin-isolate');
+  assert.doesNotThrow(() => new Function(DIAG_SCRIPT));
+});

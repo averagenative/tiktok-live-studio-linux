@@ -9,7 +9,7 @@ const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
-const { isolateScript, alphaScript, isTikTokLivePage } = require('./pin-isolate');
+const { isolateScript, alphaScript, isTikTokLivePage, DIAG_SCRIPT } = require('./pin-isolate');
 const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
 
 app.setName('LIVE Studio for Linux');
@@ -436,11 +436,23 @@ const pinAlpha = () => Math.min(1, Math.max(0, Number(settings.pinBgAlpha ?? 0.6
 function isolatePinPanel() {
   if (!pinAlive() || !settings.pinPanelOnly) return;
   if (!isTikTokLivePage(pinView.webContents.getURL())) return;
-  for (const delay of [0, 1500, 4000, 8000]) {
-    setTimeout(() => {
-      if (pinAlive()) pinView.webContents.executeJavaScript(isolateScript(pinAlpha()), true).catch(() => {});
+  let found = false;
+  const delays = [0, 1500, 4000, 8000];
+  delays.forEach((delay, i) => {
+    setTimeout(async () => {
+      if (found || !pinAlive()) return;
+      try {
+        found = !!(await pinView.webContents.executeJavaScript(isolateScript(pinAlpha()), true));
+      } catch (e) {
+        log('warn', `pinned window: panel script failed: ${e.message}`);
+      }
+      if (found) log('app', 'pinned window: showing the viewers & comments panel');
+      else if (i === delays.length - 1) {
+        const d = await pinView.webContents.executeJavaScript(DIAG_SCRIPT, true).catch((e) => ({ error: e.message }));
+        log('warn', `pinned window: couldn't find the comments panel yet (it keeps watching); layout ${JSON.stringify(d)}`);
+      }
     }, delay);
-  }
+  });
 }
 
 function pinState() {
