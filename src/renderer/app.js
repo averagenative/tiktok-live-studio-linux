@@ -125,7 +125,6 @@ function renderSettings() {
   $('drive-obs').checked = !!s.driveObs;
   $('use-profile').checked = !!s.useTikTokProfile;
   $('robot').checked = !!s.robotAvatar;
-  $('pin-opacity').value = Math.round((s.pinOpacity ?? 0.85) * 100);
   $('pin-click').checked = !!s.pinClickThrough;
   $('pin-panel').checked = s.pinPanelOnly !== false;
   if (!$('pin-url').value) {
@@ -252,10 +251,6 @@ function wire() {
   $('robot-preview').addEventListener('click', (e) => act(e.target, () => api.previewRobot()));
   $('pin-open').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinOpen($('pin-url').value))));
   $('pin-close').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinClose())));
-  $('pin-opacity').addEventListener('input', (e) => act(null, async () => {
-    view.settings = { ...view.settings, pinOpacity: Number(e.target.value) / 100 };
-    renderPin(await api.pinSet({ opacity: Number(e.target.value) / 100 }));
-  }));
   $('pin-panel').addEventListener('change', (e) => act(null, async () => {
     view.settings = { ...view.settings, pinPanelOnly: e.target.checked };
     renderPin(await api.pinSet({ panelOnly: e.target.checked }));

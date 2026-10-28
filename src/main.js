@@ -17,7 +17,7 @@ app.setName('LIVE Studio for Linux');
 // Native Wayland by default: on GNOME, Wayland windows can't pin themselves on
 // top, so the pinned window relies on GNOME's window menu (Alt+Space, Always
 // on Top). LSL_X11=1 runs through XWayland instead, where the app can pin the
-// window and set opacity and click-through itself; on hybrid Intel/NVIDIA
+// window and set click-through itself; on hybrid Intel/NVIDIA
 // laptops that mode may fail to create windows at all.
 const X11 = process.platform === 'linux' && !!process.env.LSL_X11;
 if (X11) {
@@ -57,7 +57,6 @@ const DEFAULTS = {
   useTikTokProfile: true,
   robotAvatar: false,
   pinUrl: '',
-  pinOpacity: 0.85,
   pinClickThrough: false,
   pinPanelOnly: true,
   pinBounds: null,
@@ -440,7 +439,6 @@ function pinState() {
   return {
     open: !!(pinWin && !pinWin.isDestroyed()),
     panelOnly: settings.pinPanelOnly,
-    opacity: settings.pinOpacity,
     clickThrough: settings.pinClickThrough,
     selfPin: X11,
   };
@@ -448,7 +446,6 @@ function pinState() {
 
 function applyPinLook() {
   if (!pinWin || pinWin.isDestroyed() || !X11) return;
-  pinWin.setOpacity(Math.min(1, Math.max(0.2, Number(settings.pinOpacity) || 1)));
   pinWin.setIgnoreMouseEvents(!!settings.pinClickThrough, { forward: true });
 }
 
@@ -509,8 +506,7 @@ ipcMain.handle('pin:close', wrap(async () => {
   if (pinWin && !pinWin.isDestroyed()) pinWin.close();
   return pinState();
 }));
-ipcMain.handle('pin:set', wrap(async ({ opacity, clickThrough, panelOnly } = {}) => {
-  if (opacity !== undefined) settings.pinOpacity = Math.min(1, Math.max(0.2, Number(opacity)));
+ipcMain.handle('pin:set', wrap(async ({ clickThrough, panelOnly } = {}) => {
   if (clickThrough !== undefined) settings.pinClickThrough = !!clickThrough;
   if (panelOnly !== undefined && !!panelOnly !== settings.pinPanelOnly) {
     settings.pinPanelOnly = !!panelOnly;
