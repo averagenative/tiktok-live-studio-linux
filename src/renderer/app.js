@@ -61,6 +61,26 @@ function renderAccount() {
       el.className = 'status err';
     }
   }
+  const st = a.studio;
+  const se = $('studio-access');
+  show(se, !!(a.loggedIn && st));
+  show($('apply-studio'), !!(a.loggedIn && st?.known && !st.enabled && !st.localeRestricted));
+  if (st && a.loggedIn) {
+    if (!st.known) {
+      se.textContent = `LIVE Studio access: unknown (${st.message})`;
+      se.className = 'status small';
+    } else if (st.enabled) {
+      se.textContent = 'LIVE Studio access: granted';
+      se.className = 'status small ok';
+    } else if (st.localeRestricted) {
+      se.textContent = 'LIVE Studio access: not available in your region';
+      se.className = 'status small err';
+    } else {
+      se.textContent = `LIVE Studio access: not granted yet${st.status != null ? ` (status ${st.status})` : ''}. `
+        + 'Going LIVE from the phone app is a separate permission.';
+      se.className = 'status small err';
+    }
+  }
   const sel = $('topic');
   const current = sel.value || view.settings.lastTopicId || '';
   sel.replaceChildren(new Option('No topic', ''));
@@ -117,6 +137,7 @@ function renderLive() {
     let hint = '';
     if (!view.account.loggedIn) hint = 'Log in first.';
     else if (view.account.createInfo && !view.account.createInfo.ok) hint = 'TikTok says this account cannot go LIVE right now.';
+    else if (view.account.studio?.known && !view.account.studio.enabled) hint = "TikTok hasn't granted LIVE Studio access to this account yet.";
     else if (view.settings.driveObs && !view.obs.connected) hint = 'Connect to OBS, or turn off "Drive OBS".';
     $('go-hint').textContent = hint;
     $('go').disabled = !view.account.loggedIn || (view.settings.driveObs && !view.obs.connected);
@@ -177,6 +198,10 @@ function wire() {
   $('theme').addEventListener('change', (e) => saveSetting({ theme: e.target.value }));
   $('login').addEventListener('click', (e) => act(e.target, () => api.login()));
   $('logout').addEventListener('click', (e) => act(e.target, () => api.logout()));
+  $('apply-studio').addEventListener('click', (e) => act(e.target, async () => {
+    const res = await api.applyStudio();
+    addLog({ t: Date.now(), kind: res.ok ? 'auth' : 'warn', message: res.ok ? 'Applied for LIVE Studio access; TikTok decides when to grant it' : `Apply failed: ${res.message}` });
+  }));
   $('refresh').addEventListener('click', (e) => act(e.target, async () => {
     view.account = await api.refreshAccount();
     renderAccount();

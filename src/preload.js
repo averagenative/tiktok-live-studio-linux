@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('ls', {
   login: () => call('auth:login'),
   logout: () => call('auth:logout'),
   refreshAccount: () => call('account:refresh'),
+  applyStudio: () => call('account:apply-studio'),
   obsConnect: () => call('obs:connect'),
   obsDisconnect: () => call('obs:disconnect'),
   obsSetup: () => call('obs:setup'),

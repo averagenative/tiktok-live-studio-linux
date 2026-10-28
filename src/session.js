@@ -87,7 +87,10 @@ class LiveSession extends EventEmitter {
       });
 
       if (body.status_code !== CreateStatus.success) {
-        throw new Error(`TikTok refused to create the LIVE: ${apiMessage(body)} (status_code ${body.status_code})`);
+        const hint = body.status_code === CreateStatus.noLiveAuth
+          ? ' This account has no LIVE Studio access yet (separate from going LIVE in the phone app); use "Apply for LIVE Studio access".'
+          : '';
+        throw new Error(`TikTok refused to create the LIVE: ${apiMessage(body)} (status_code ${body.status_code}).${hint}`);
       }
       const room = summarizeRoom(body.data);
       if (room?.pingRoomId) this.room = room;

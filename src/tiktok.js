@@ -159,6 +159,26 @@ class TikTokApi {
     throw lastErr || new Error('No webcast host answered');
   }
 
+  // LIVE Studio access is a separate grant from going LIVE in the phone app.
+  // live_podcast carries live_scenario.enable_live_studio and the
+  // live_studio_permission_status the official app shows.
+  getStudioPermission() {
+    return this.request('GET', '/webcast/room/live_podcast/');
+  }
+
+  checkStudioAccess() {
+    return this.request('GET', '/webcast/eco/check_access/', { params: { permission_type: 1 } });
+  }
+
+  getStudioApplyInfo() {
+    return this.request('GET', '/webcast/room/live_permission/apply_info/', { params: { permission_name: 'live_studio' } });
+  }
+
+  // The official app's "Apply" button: asks TikTok to grant LIVE Studio access.
+  applyStudioPermission() {
+    return this.request('POST', '/webcast/room/live_permission/apply/', { form: { permission_name: 'live_studio' } });
+  }
+
   getHashtags() {
     return this.request('GET', '/webcast/room/hashtag/list/', { params: { live_studio: 1 } });
   }

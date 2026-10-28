@@ -31,6 +31,7 @@ const CreateStatus = Object.freeze({
   punished: 10018,
   holdLiving: 30005,
   illegalAvatar: 30011,
+  noLiveAuth: 20800,
 });
 
 function md5Hex(text) {
@@ -224,6 +225,20 @@ function candidateWebcastHosts(cookies, override) {
   return list;
 }
 
+// A short, log-friendly view of a response's data: long arrays and strings cut down.
+function summarize(value, max = 700) {
+  const seen = new WeakSet();
+  const trim = (v, depth) => {
+    if (v === null || typeof v !== 'object') return typeof v === 'string' && v.length > 120 ? `${v.slice(0, 120)}...` : v;
+    if (seen.has(v) || depth > 4) return '...';
+    seen.add(v);
+    if (Array.isArray(v)) return v.length > 4 ? [...v.slice(0, 4).map((x) => trim(x, depth + 1)), `+${v.length - 4} more`] : v.map((x) => trim(x, depth + 1));
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, trim(x, depth + 1)]));
+  };
+  const s = JSON.stringify(trim(value, 0));
+  return s && s.length > max ? `${s.slice(0, max)}...` : s;
+}
+
 function apiMessage(body) {
   if (!body) return 'empty response';
   const d = body.data || {};
@@ -252,5 +267,6 @@ module.exports = {
   idcFromCookies,
   webcastHostForIdc,
   candidateWebcastHosts,
+  summarize,
   apiMessage,
 };

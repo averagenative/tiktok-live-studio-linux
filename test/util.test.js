@@ -134,3 +134,11 @@ test('candidateWebcastHosts tries override, IDC host, US hosts, then the rest', 
   assert.equal(u.candidateWebcastHosts([], '')[0], 'https://webcast16-normal-useast5.tiktokv.us');
   assert.equal(u.idcFromCookies([{ name: 'store-idc', value: 'ALISG' }]), 'alisg');
 });
+
+test('summarize trims long arrays and strings for the log', () => {
+  const s = u.summarize({ a: [1, 2, 3, 4, 5, 6], b: 'x'.repeat(200), c: { d: true } });
+  assert.match(s, /"\+2 more"/);
+  assert.match(s, /x{120}\.\.\./);
+  assert.match(s, /"d":true/);
+  assert.ok(u.summarize({ big: 'y'.repeat(5000) }, 100).length <= 103);
+});

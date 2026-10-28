@@ -9,7 +9,7 @@ const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
-const { hasSession, extractTopics, apiMessage, idcFromCookies } = require('./util');
+const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize } = require('./util');
 
 app.setName('LIVE Studio for Linux');
 
@@ -27,6 +27,7 @@ const logs = [];
 let account = null;
 let createInfo = null;
 let topics = [];
+let studio = null;
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -174,12 +175,47 @@ async function refreshAccount() {
   } catch (e) {
     createInfo = { ok: false, statusCode: -1, message: e.message };
   }
+  studio = await refreshStudioAccess();
   send('account', accountState());
   return accountState();
 }
 
+// Phone LIVE access doesn't imply LIVE Studio access; TikTok grants that
+// separately. Logs what TikTok says so a refusal can be explained.
+async function refreshStudioAccess() {
+  try {
+    const body = await api.getStudioPermission();
+    const d = body.data || {};
+    log('api', `LIVE Studio permission: ${summarize({
+      enable_live_studio: d.live_scenario?.enable_live_studio,
+      live_studio_permission_status: d.live_studio_permission_status,
+      show_live_studio: d.show_live_studio,
+      golive_locale_restricted: d.golive_locale_restricted,
+      can_be_live_podcast: d.can_be_live_podcast,
+    })}`);
+    for (const [name, call] of [['access check', () => api.checkStudioAccess()], ['apply info', () => api.getStudioApplyInfo()]]) {
+      try {
+        const r = await call();
+        log('api', `LIVE Studio ${name}: status_code ${r.status_code} ${summarize(r.data)}`);
+      } catch (e) {
+        log('warn', `LIVE Studio ${name}: ${e.message}`);
+      }
+    }
+    if (body.status_code !== 0) return { known: false, message: apiMessage(body) };
+    return {
+      known: true,
+      enabled: !!d.live_scenario?.enable_live_studio,
+      status: d.live_studio_permission_status ?? null,
+      localeRestricted: !!d.golive_locale_restricted,
+    };
+  } catch (e) {
+    log('warn', `LIVE Studio permission: ${e.message}`);
+    return { known: false, message: e.message };
+  }
+}
+
 function accountState() {
-  return { loggedIn: !!account, account, createInfo, topics };
+  return { loggedIn: !!account, account, createInfo, topics, studio };
 }
 
 function openLogin() {
@@ -262,6 +298,13 @@ ipcMain.handle('settings:set', wrap(async (patch) => {
 ipcMain.handle('auth:login', wrap(async () => openLogin()));
 ipcMain.handle('auth:logout', wrap(logout));
 ipcMain.handle('account:refresh', wrap(refreshAccount));
+ipcMain.handle('account:apply-studio', wrap(async () => {
+  const body = await api.applyStudioPermission();
+  log('api', `apply for LIVE Studio access: status_code ${body.status_code} ${summarize(body.data)}`);
+  const result = { ok: body.status_code === 0, message: body.status_code === 0 ? '' : apiMessage(body) };
+  await refreshAccount();
+  return result;
+}));
 
 ipcMain.handle('obs:connect', wrap(async () => {
   try {
