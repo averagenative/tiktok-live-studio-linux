@@ -121,7 +121,7 @@ class ObsClient extends EventEmitter {
     this.identified = false;
   }
 
-  call(requestType, requestData = {}) {
+  call(requestType, requestData = {}, { timeoutMs = 10000 } = {}) {
     if (!this.identified || !this.ws) return Promise.reject(new Error('Not connected to OBS'));
     const requestId = String(this.nextId++);
     return new Promise((resolve, reject) => {
@@ -129,7 +129,7 @@ class ObsClient extends EventEmitter {
       this.ws.send(JSON.stringify({ op: OpCode.Request, d: { requestType, requestId, requestData } }));
       setTimeout(() => {
         if (this.pending.delete(requestId)) reject(new Error(`OBS ${requestType} timed out`));
-      }, 10000);
+      }, timeoutMs);
     });
   }
 

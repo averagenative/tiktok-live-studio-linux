@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const { app, BrowserWindow, ipcMain, session, clipboard, shell, screen, safeStorage } = require('electron');
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
@@ -266,6 +267,13 @@ ipcMain.handle('obs:disconnect', wrap(async () => {
   return obsState();
 }));
 
+// OBS's "Show Connect Info" offers the LAN address, which is still this machine.
+function isThisMachine(host) {
+  const h = String(host || '').trim().toLowerCase();
+  if (['127.0.0.1', 'localhost', '::1', os.hostname().toLowerCase()].includes(h)) return true;
+  return Object.values(os.networkInterfaces()).flat().some((a) => a && a.address.toLowerCase() === h);
+}
+
 // Copy the scene artwork somewhere OBS can read it (the app's own files may
 // sit inside an AppImage mount or asar archive).
 function exportObsAssets() {
@@ -280,7 +288,7 @@ function exportObsAssets() {
 
 ipcMain.handle('obs:setup', wrap(async () => {
   if (!obs.connected) throw new Error('Connect to OBS first');
-  const local = ['127.0.0.1', 'localhost', '::1'].includes(String(settings.obsHost).trim());
+  const local = isThisMachine(settings.obsHost);
   if (!local) log('warn', 'OBS is on another machine; using plain colors instead of the scene artwork');
   const result = await setupTikTok(obs, {
     handle: account?.username || '',

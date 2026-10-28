@@ -136,23 +136,31 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
   say(`video 1080x1920 @ ${fps} fps, NVENC H.264 6000 kbps, AAC 160 kbps`);
 
   // ---- scene collection -----------------------------------------------------
+  // Creating or re-running both converge on the same result: anything of ours
+  // that's missing gets added, and anything the user added is left alone.
   const { sceneCollections } = await obs.call('GetSceneCollectionList');
-  if (sceneCollections.includes(COLLECTION)) {
+  const existed = sceneCollections.includes(COLLECTION);
+  if (existed) {
     await obs.call('SetCurrentSceneCollection', { sceneCollectionName: COLLECTION });
-    say(`scene collection "${COLLECTION}" already exists; switched to it and left it unchanged`);
-    return { profile: PROFILE, collection: COLLECTION, created: false, warnings };
+    say(`scene collection "${COLLECTION}" exists; filling in anything missing`);
+  } else {
+    await obs.call('CreateSceneCollection', { sceneCollectionName: COLLECTION });
+    say(`created scene collection "${COLLECTION}"`);
   }
-  await obs.call('CreateSceneCollection', { sceneCollectionName: COLLECTION });
-  say(`created scene collection "${COLLECTION}"`);
 
   const overlays = !!assetsDir;
   const layouts = sceneLayouts({ overlays, capture, handle: at });
   const sceneNames = Object.keys(layouts);
-  const { scenes: initial } = await obs.call('GetSceneList');
+  const { scenes: before } = await obs.call('GetSceneList');
+  const haveScene = new Set(before.map((x) => x.sceneName));
   // OBS lists new scenes at the top, so create them last-to-first.
-  for (const name of [...sceneNames].reverse()) await obs.call('CreateScene', { sceneName: name });
+  for (const name of [...sceneNames].reverse()) {
+    if (!haveScene.has(name)) await obs.call('CreateScene', { sceneName: name });
+  }
 
-  // Source definitions: kind + settings. Created on first use, then reused.
+  const { inputKinds } = await obs.call('GetInputKindList', { unversioned: false });
+  // For games, a window capture keeps notifications and other windows off stream.
+  const captureKind = ['pipewire-window-capture-source', 'pipewire-screen-capture-source'].find((k) => inputKinds.includes(k));
   const file = (n) => `${assetsDir}/${n}`;
   const defs = {
     Background: overlays
@@ -162,7 +170,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
     'Frame: Screen + Camera': { kind: 'image_source', settings: { file: file('overlay-screen-camera.png') } },
     'Frame: Screen': { kind: 'image_source', settings: { file: file('overlay-screen.png') } },
     Webcam: { kind: 'v4l2_input', settings: {} },
-    Screen: { kind: 'pipewire-screen-capture-source', settings: { ShowCursor: true } },
+    Screen: { kind: captureKind, settings: { ShowCursor: true } },
     'Title: Starting': { kind: 'text_ft2_source_v2', settings: textSettings('STARTING SOON') },
     'Subtitle: Starting': { kind: 'text_ft2_source_v2', settings: textSettings('LIVE in a moment', { face: 'Montserrat Medium', size: 44 }) },
     'Title: BRB': { kind: 'text_ft2_source_v2', settings: textSettings('BE RIGHT BACK') },
@@ -170,44 +178,123 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, capture = true,
     'Title: Ending 2': { kind: 'text_ft2_source_v2', settings: textSettings('WATCHING') },
     Handle: { kind: 'text_ft2_source_v2', settings: textSettings(at, { face: 'Montserrat SemiBold', size: 52, color: CYAN }) },
     Follow: { kind: 'text_ft2_source_v2', settings: textSettings(`follow ${at}`, { face: 'Montserrat SemiBold', size: 52, color: CYAN }) },
+    Mic: { kind: 'pulse_input_capture', settings: { device_id: 'default' } },
+    'Desktop Audio': { kind: 'pulse_output_capture', settings: { device_id: 'default' } },
   };
 
-  const created = new Set();
+  const { inputs } = await obs.call('GetInputList');
+  const inputKind = new Map(inputs.map((i) => [i.inputName, i.inputKind]));
+
+  // A first run without artwork left a plain color Background; swap in the image.
+  if (inputKind.get('Background') && inputKind.get('Background') !== defs.Background.kind) {
+    await obs.call('SetInputName', { inputName: 'Background', newInputName: 'Background (old)' });
+    inputKind.delete('Background');
+    inputKind.set('Background (old)', 'old');
+  }
+
+  // New collections don't get OBS's global Desktop Audio / Mic, so add our own
+  // audio sources to every scene unless the collection already has them.
+  const special = await obs.call('GetSpecialInputs');
+  const audio = [];
+  if (!special.mic1) audio.push('Mic');
+  if (!special.desktop1) audio.push('Desktop Audio');
+
+  const items = new Map();
+  const itemsOf = async (sceneName) => {
+    if (!items.has(sceneName)) {
+      const { sceneItems } = await obs.call('GetSceneItemList', { sceneName });
+      items.set(sceneName, sceneItems);
+    }
+    return items.get(sceneName);
+  };
+
+  const place = async (sceneName, sourceName, transform, timeoutMs) => {
+    const present = (await itemsOf(sceneName)).find((i) => i.sourceName === sourceName);
+    if (present) return false;
+    let sceneItemId;
+    if (!inputKind.has(sourceName)) {
+      const def = defs[sourceName];
+      ({ sceneItemId } = await obs.call('CreateInput', {
+        sceneName, inputName: sourceName, inputKind: def.kind, inputSettings: def.settings, sceneItemEnabled: true,
+      }, { timeoutMs }));
+      inputKind.set(sourceName, def.kind);
+      if (sourceName === 'Webcam') await pickFirstCamera(obs, warnings, say);
+    } else {
+      ({ sceneItemId } = await obs.call('CreateSceneItem', { sceneName, sourceName, sceneItemEnabled: true }));
+    }
+    (await itemsOf(sceneName)).push({ sourceName, sceneItemId });
+    if (transform) await obs.call('SetSceneItemTransform', { sceneName, sceneItemId, sceneItemTransform: transform });
+    return true;
+  };
+
+  let added = 0;
   for (const sceneName of sceneNames) {
     for (const [sourceName, transform] of layouts[sceneName]) {
-      let sceneItemId;
-      if (!created.has(sourceName)) {
-        const def = defs[sourceName];
-        const res = await obs.call('CreateInput', {
-          sceneName, inputName: sourceName, inputKind: def.kind, inputSettings: def.settings, sceneItemEnabled: true,
-        });
-        sceneItemId = res.sceneItemId;
-        created.add(sourceName);
-        if (sourceName === 'Webcam') await pickFirstCamera(obs, warnings, say);
-        if (sourceName === 'Screen') say('screen capture added; pick the screen or window to share in the GNOME dialog');
-      } else {
-        ({ sceneItemId } = await obs.call('CreateSceneItem', { sceneName, sourceName, sceneItemEnabled: true }));
+      if (sourceName === 'Screen') continue;
+      if (await place(sceneName, sourceName, transform)) added += 1;
+    }
+    for (const a of audio) if (await place(sceneName, a, null)) added += 1;
+  }
+
+  // Screen capture goes last: creating it opens GNOME's picker, which waits
+  // for the user. If it doesn't finish, the rest of the setup still stands.
+  if (capture && captureKind) {
+    say('pick the game window (or screen) to share in the GNOME dialog');
+    try {
+      for (const sceneName of sceneNames) {
+        const entry = layouts[sceneName].find(([n]) => n === 'Screen');
+        if (entry && (await place(sceneName, 'Screen', entry[1], 90000))) added += 1;
       }
-      if (transform) {
-        await obs.call('SetSceneItemTransform', { sceneName, sceneItemId, sceneItemTransform: transform });
-      }
+    } catch (e) {
+      warnings.push(`screen capture wasn't added (${e.message}); in OBS add a "Window Capture (PipeWire)" source named Screen`);
+    }
+  } else if (capture) {
+    warnings.push('this OBS has no PipeWire capture source');
+  }
+
+  // Keep our layers in layout order at the bottom; user-added items stay above.
+  for (const sceneName of sceneNames) {
+    const list = await itemsOf(sceneName);
+    let index = 0;
+    for (const [sourceName] of layouts[sceneName]) {
+      const it = list.find((i) => i.sourceName === sourceName);
+      if (!it) continue;
+      await obs.call('SetSceneItemIndex', { sceneName, sceneItemId: it.sceneItemId, sceneItemIndex: index }).catch(() => {});
+      index += 1;
     }
   }
 
-  // Drop the empty default scene the new collection came with.
-  for (const s of initial) {
-    if (!sceneNames.includes(s.sceneName)) await obs.call('RemoveScene', { sceneName: s.sceneName }).catch(() => {});
-  }
-  await obs.call('SetCurrentProgramScene', { sceneName: sceneNames[0] });
-  say(`added scenes: ${sceneNames.join(', ')}`);
+  if (inputKind.has('Background (old)')) await removeEverywhere(obs, 'Background (old)');
 
-  await tuneMic(obs, warnings, say);
+  // Drop the empty default scene a new collection comes with.
+  for (const sc of before) {
+    if (sceneNames.includes(sc.sceneName)) continue;
+    const { sceneItems } = await obs.call('GetSceneItemList', { sceneName: sc.sceneName });
+    if (sceneItems.length === 0) await obs.call('RemoveScene', { sceneName: sc.sceneName }).catch(() => {});
+  }
+  if (!existed) await obs.call('SetCurrentProgramScene', { sceneName: sceneNames[0] });
+  say(existed ? `repaired: added ${added} missing item(s)` : `added scenes: ${sceneNames.join(', ')}`);
+
+  await tuneMic(obs, warnings, say, special.mic1 || 'Mic');
 
   await obs.call('SetCurrentSceneTransition', { transitionName: 'Fade' }).catch(() => {});
   await obs.call('SetCurrentSceneTransitionDuration', { transitionDuration: 300 }).catch(() => {});
 
   for (const w of warnings) say(`warning: ${w}`);
-  return { profile: PROFILE, collection: COLLECTION, created: true, scenes: sceneNames, warnings };
+  return { profile: PROFILE, collection: COLLECTION, created: !existed, added, scenes: sceneNames, warnings };
+}
+
+// RemoveInput alone can leave the source in some scenes (seen on OBS 32.1),
+// so take it out of every scene first.
+async function removeEverywhere(obs, sourceName) {
+  const { scenes } = await obs.call('GetSceneList');
+  for (const sc of scenes) {
+    const { sceneItems } = await obs.call('GetSceneItemList', { sceneName: sc.sceneName });
+    for (const it of sceneItems.filter((i) => i.sourceName === sourceName)) {
+      await obs.call('RemoveSceneItem', { sceneName: sc.sceneName, sceneItemId: it.sceneItemId }).catch(() => {});
+    }
+  }
+  await obs.call('RemoveInput', { inputName: sourceName }).catch(() => {});
 }
 
 // OBS only re-reads a profile's video settings when the profile is loaded,
@@ -253,8 +340,11 @@ async function tuneMic(obs, warnings, say, sourceName) {
     ['Compressor', kind('compressor_filter'), { ratio: 4, threshold: -18, attack_time: 6, release_time: 60, output_gain: 0 }],
     ['Limiter', kind('limiter_filter'), { threshold: -2, release_time: 60 }],
   ];
+  const { filters: existing } = await obs.call('GetSourceFilterList', { sourceName: mic1 }).catch(() => ({ filters: [] }));
+  const have = new Set((existing || []).map((f) => f.filterName));
   const added = [];
   for (const [filterName, filterKind, filterSettings] of filters) {
+    if (have.has(filterName)) continue;
     if (!filterKind) {
       warnings.push(`filter ${filterName} isn't available in this OBS`);
       continue;
