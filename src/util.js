@@ -225,6 +225,29 @@ function candidateWebcastHosts(cookies, override) {
   return list;
 }
 
+// /webcast/eco/check_access/ lists TikTok's LIVE Studio requirements as
+// guidelines[].requirements[] with a pass flag. Field names for the text
+// vary, so take the first string-looking one.
+function studioRequirements(accessData) {
+  const out = [];
+  for (const g of accessData?.guidelines || []) {
+    for (const r of g?.requirements || []) {
+      const text = ['title', 'text', 'desc', 'description', 'name', 'content', 'requirement', 'key']
+        .map((k) => r?.[k]).find((v) => typeof v === 'string' && v.trim());
+      out.push({ text: text || 'Requirement', pass: !!r?.pass });
+    }
+  }
+  return out;
+}
+
+const STUDIO_APPLY_URL = 'https://www.tiktok.com/falcon/live_g/live_studio_permission_apply/index.html';
+
+// The official app opens this page (in the logged-in session) to apply.
+function studioApplyUrl({ userId = '0', lang = 'en' } = {}) {
+  const q = new URLSearchParams({ source: 'live_studio', aid: String(CLIENT.aid), user_id: userId || '0', lang, exp_group: 'v0' });
+  return `${STUDIO_APPLY_URL}?${q}`;
+}
+
 // A short, log-friendly view of a response's data: long arrays and strings cut down.
 function summarize(value, max = 700) {
   const seen = new WeakSet();
@@ -268,5 +291,7 @@ module.exports = {
   webcastHostForIdc,
   candidateWebcastHosts,
   summarize,
+  studioRequirements,
+  studioApplyUrl,
   apiMessage,
 };

@@ -142,3 +142,24 @@ test('summarize trims long arrays and strings for the log', () => {
   assert.match(s, /"d":true/);
   assert.ok(u.summarize({ big: 'y'.repeat(5000) }, 100).length <= 103);
 });
+
+test('studioRequirements reads the pass/fail checklist from check_access', () => {
+  const reqs = u.studioRequirements({
+    in_calm_period: false,
+    guidelines: [{ requirements: [{ title: 'Be 18 or older', pass: true }, { desc: 'Have 1,000 followers', pass: false }, { pass: false }] }],
+  });
+  assert.deepEqual(reqs, [
+    { text: 'Be 18 or older', pass: true },
+    { text: 'Have 1,000 followers', pass: false },
+    { text: 'Requirement', pass: false },
+  ]);
+  assert.deepEqual(u.studioRequirements(null), []);
+});
+
+test('studioApplyUrl builds the official application page URL', () => {
+  const url = new URL(u.studioApplyUrl({ userId: '123', lang: 'en' }));
+  assert.equal(url.origin + url.pathname, 'https://www.tiktok.com/falcon/live_g/live_studio_permission_apply/index.html');
+  assert.equal(url.searchParams.get('source'), 'live_studio');
+  assert.equal(url.searchParams.get('aid'), '8311');
+  assert.equal(url.searchParams.get('user_id'), '123');
+});

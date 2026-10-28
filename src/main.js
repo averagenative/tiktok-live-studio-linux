@@ -9,7 +9,7 @@ const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
-const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize } = require('./util');
+const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl } = require('./util');
 
 app.setName('LIVE Studio for Linux');
 
@@ -193,20 +193,21 @@ async function refreshStudioAccess() {
       golive_locale_restricted: d.golive_locale_restricted,
       can_be_live_podcast: d.can_be_live_podcast,
     })}`);
-    for (const [name, call] of [['access check', () => api.checkStudioAccess()], ['apply info', () => api.getStudioApplyInfo()]]) {
-      try {
-        const r = await call();
-        log('api', `LIVE Studio ${name}: status_code ${r.status_code} ${summarize(r.data)}`);
-      } catch (e) {
-        log('warn', `LIVE Studio ${name}: ${e.message}`);
-      }
+    let access = null;
+    try {
+      const r = await api.checkStudioAccess();
+      log('api', `LIVE Studio access check: status_code ${r.status_code} ${summarize(r.data, 1500)}`);
+      if (r.status_code === 0) access = r.data;
+    } catch (e) {
+      log('warn', `LIVE Studio access check: ${e.message}`);
     }
     if (body.status_code !== 0) return { known: false, message: apiMessage(body) };
     return {
       known: true,
       enabled: !!d.live_scenario?.enable_live_studio,
-      status: d.live_studio_permission_status ?? null,
       localeRestricted: !!d.golive_locale_restricted,
+      calmPeriod: !!access?.in_calm_period,
+      requirements: studioRequirements(access),
     };
   } catch (e) {
     log('warn', `LIVE Studio permission: ${e.message}`);
@@ -298,12 +299,30 @@ ipcMain.handle('settings:set', wrap(async (patch) => {
 ipcMain.handle('auth:login', wrap(async () => openLogin()));
 ipcMain.handle('auth:logout', wrap(logout));
 ipcMain.handle('account:refresh', wrap(refreshAccount));
+// TikTok's own LIVE Studio application page, in the logged-in session.
+// Refresh the account when it closes, since access may have changed.
+let applyWin = null;
 ipcMain.handle('account:apply-studio', wrap(async () => {
-  const body = await api.applyStudioPermission();
-  log('api', `apply for LIVE Studio access: status_code ${body.status_code} ${summarize(body.data)}`);
-  const result = { ok: body.status_code === 0, message: body.status_code === 0 ? '' : apiMessage(body) };
-  await refreshAccount();
-  return result;
+  if (applyWin && !applyWin.isDestroyed()) {
+    applyWin.focus();
+    return;
+  }
+  applyWin = new BrowserWindow({
+    width: 480, height: 860, parent: mainWin, title: 'Apply for LIVE Studio access', autoHideMenuBar: true,
+    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  applyWin.webContents.setUserAgent(BROWSER_UA);
+  applyWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\/([a-z0-9-]+\.)*tiktok\.com\//.test(url)) applyWin.loadURL(url);
+    return { action: 'deny' };
+  });
+  const url = studioApplyUrl({ userId: account?.userId, lang: settings.language });
+  log('auth', `opened TikTok's LIVE Studio application page`);
+  applyWin.on('closed', () => {
+    applyWin = null;
+    refreshAccount().catch((e) => log('warn', e.message));
+  });
+  applyWin.loadURL(url);
 }));
 
 ipcMain.handle('obs:connect', wrap(async () => {

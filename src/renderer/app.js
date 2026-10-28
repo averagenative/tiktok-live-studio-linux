@@ -76,8 +76,9 @@ function renderAccount() {
       se.textContent = 'LIVE Studio access: not available in your region';
       se.className = 'status small err';
     } else {
-      se.textContent = `LIVE Studio access: not granted yet${st.status != null ? ` (status ${st.status})` : ''}. `
-        + 'Going LIVE from the phone app is a separate permission.';
+      const reqs = (st.requirements || []).map((r) => `${r.pass ? '\u2713' : '\u2717'} ${r.text}`).join('   ');
+      se.textContent = `LIVE Studio access: not granted yet${st.calmPeriod ? ' (in a cooldown period)' : ''}. `
+        + `This is separate from going LIVE in the phone app.${reqs ? ` TikTok's requirements: ${reqs}` : ''}`;
       se.className = 'status small err';
     }
   }
@@ -198,10 +199,7 @@ function wire() {
   $('theme').addEventListener('change', (e) => saveSetting({ theme: e.target.value }));
   $('login').addEventListener('click', (e) => act(e.target, () => api.login()));
   $('logout').addEventListener('click', (e) => act(e.target, () => api.logout()));
-  $('apply-studio').addEventListener('click', (e) => act(e.target, async () => {
-    const res = await api.applyStudio();
-    addLog({ t: Date.now(), kind: res.ok ? 'auth' : 'warn', message: res.ok ? 'Applied for LIVE Studio access; TikTok decides when to grant it' : `Apply failed: ${res.message}` });
-  }));
+  $('apply-studio').addEventListener('click', (e) => act(e.target, () => api.applyStudio()));
   $('refresh').addEventListener('click', (e) => act(e.target, async () => {
     view.account = await api.refreshAccount();
     renderAccount();
