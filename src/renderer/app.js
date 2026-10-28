@@ -240,6 +240,22 @@ async function init() {
   renderLive();
   for (const l of st.logs) addLog(l);
   $('footer').textContent = `v${st.versions.app} · Electron ${st.versions.electron} · not affiliated with TikTok`;
+  watchContentSize();
+}
+
+// Ask the main process to grow the window whenever the content outgrows it.
+function watchContentSize() {
+  let queued = false;
+  const report = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      api.fit(document.documentElement.scrollWidth, Math.ceil(document.body.getBoundingClientRect().height));
+    });
+  };
+  new ResizeObserver(report).observe(document.body);
+  report();
 }
 
 init();

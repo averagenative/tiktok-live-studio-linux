@@ -299,12 +299,44 @@ ipcMain.handle('open:external', wrap(async (url) => {
 
 // ---- windows / lifecycle --------------------------------------------------
 
+// The window starts hidden, the renderer reports how big its content is, and
+// we grow the window to fit (within the work area) before showing it, so it
+// opens without scrollbars. It keeps growing for taller views (the live panel)
+// until the user resizes it by hand.
+let lastFit = null;
+let userResized = false;
+
+function showMain() {
+  if (mainWin && !mainWin.isDestroyed() && !mainWin.isVisible()) mainWin.show();
+}
+
+function fitWindow({ width, height }) {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  if (userResized || mainWin.isMaximized() || mainWin.isFullScreen()) {
+    showMain();
+    return;
+  }
+  const area = screen.getDisplayMatching(mainWin.getBounds()).workAreaSize;
+  const [cw, ch] = mainWin.getContentSize();
+  const [ow, oh] = mainWin.getSize();
+  const w = Math.min(Math.max(cw, Math.ceil(width)), area.width - (ow - cw));
+  const h = Math.min(Math.max(ch, Math.ceil(height)), area.height - (oh - ch));
+  if (w !== cw || h !== ch) {
+    lastFit = [w, h];
+    mainWin.setContentSize(w, h);
+  }
+  showMain();
+}
+
+ipcMain.on('window:fit', (_e, size) => fitWindow(size || {}));
+
 function createMainWindow() {
   mainWin = new BrowserWindow({
     width: 980,
     height: 820,
     minWidth: 720,
     minHeight: 600,
+    show: false,
     title: 'LIVE Studio for Linux (unofficial)',
     backgroundColor: '#0f1115',
     autoHideMenuBar: true,
@@ -318,6 +350,13 @@ function createMainWindow() {
   });
   mainWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWin.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWin.on('resize', () => {
+    if (!lastFit || !mainWin.isVisible()) return;
+    const [w, h] = mainWin.getContentSize();
+    if (Math.abs(w - lastFit[0]) > 4 || Math.abs(h - lastFit[1]) > 4) userResized = true;
+  });
+  // Fallback in case the renderer never reports a size.
+  setTimeout(showMain, 3000);
 
   // Dev aid: LSL_CAPTURE=/path/shot.png [LSL_THEME=light] saves the window and quits.
   if (process.env.LSL_CAPTURE) {

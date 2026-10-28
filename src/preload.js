@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('ls', {
   copy: (what) => call('live:copy', what),
   copyLog: () => call('log:copy'),
   openExternal: (url) => call('open:external', url),
+  fit: (width, height) => ipcRenderer.send('window:fit', { width, height }),
   onLog: on('log'),
   onSession: on('session'),
   onObs: on('obs'),
