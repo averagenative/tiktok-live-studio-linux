@@ -19,7 +19,10 @@ const ISOLATE_SCRIPT = `(() => {
       z-index: 0 !important; border-radius: 0 !important; background: rgba(14, 16, 22, var(--lsl-alpha, 0.6)) !important;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 1px rgba(0, 0, 0, 0.9); }
     html.lsl-iso .lsl-panel *:not(input):not(textarea):not(button):not(img):not(video):not(svg):not(path) {
-      background-color: transparent !important; }\`;
+      background-color: transparent !important; }
+    html.lsl-iso .lsl-panel ::-webkit-scrollbar { width: 6px; height: 6px; }
+    html.lsl-iso .lsl-panel ::-webkit-scrollbar-track { background: transparent; }
+    html.lsl-iso .lsl-panel ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 3px; }\`;
   document.documentElement.append(style);
 
   // 1. The panel, by the test labels TikTok puts on it (data-e2e). These are
