@@ -106,7 +106,7 @@ If you'd rather not let the app control OBS, clear **Drive OBS automatically**. 
 
 ## Robot avatar
 
-To stay off camera, select **Robot avatar instead of webcam** in the **OBS** panel. An animated robot replaces your webcam in the **Camera** and **Screen + Camera** scenes, and the **Screen + Robot** scene always shows it. It blinks, bobs, sways its arms, and lights up its equalizer mouth when your mic picks up your voice. Your webcam is hidden from the stream while the robot is on. Clear the option to switch back.
+To stay off camera, select **Robot avatar instead of webcam** in the **OBS** panel. An animated robot replaces your webcam in the **Camera** and **Screen + Camera** scenes, and the **Screen + Robot** scene always shows it. It blinks, bobs, and lights up its equalizer mouth when your mic picks up your voice. When you get loud, it throws both arms up in a cheer. It also moves on its own: head tilts, turns, and nods while you talk, and shrugs or brushes off a shoulder in quieter moments. Your webcam is hidden from the stream while the robot is on. Clear the option to switch back.
 
 - The robot is an OBS **Browser** source that loads `http://127.0.0.1:47812/avatar` from this app, so keep the app running while you're LIVE.
 - The mouth follows the level of your mic input in OBS (`Mic`, or `Mic/Aux` in other scene collections), after the mic filters.
@@ -186,6 +186,10 @@ The code is plain CommonJS with no build step:
 | `src/pin-isolate.js`, `src/pin/` | Pinned window panel-only view and its shell |
 | `src/util.js` | Pure helpers shared by the rest |
 | `src/renderer/` | The app's UI |
+
+## Roadmap
+
+- More avatars to choose from, including animal themes.
 
 ## License
 
