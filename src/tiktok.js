@@ -86,7 +86,14 @@ class TikTokApi {
       headers['x-ss-stub'] = md5Hex(body);
     }
 
-    const res = await fetch(url, { method, headers, body, redirect: 'follow' });
+    let res;
+    try {
+      res = await fetch(url, { method, headers, body, redirect: 'follow', signal: AbortSignal.timeout(20000) });
+    } catch (e) {
+      const why = e.name === 'TimeoutError' ? 'timed out after 20 s' : e.message;
+      this.log('api', `${method} ${url.host}${url.pathname} -> ${why}`);
+      throw new ApiError(`${url.pathname} ${why}`);
+    }
     const logId = res.headers.get('x-tt-logid') || '';
     const text = await res.text();
     let json;

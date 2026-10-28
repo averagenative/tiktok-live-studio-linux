@@ -65,3 +65,14 @@ test('detectWebcastHost reports logged-out when every host says so', async () =>
     f.restore();
   }
 });
+
+test('a request that never answers fails with a timeout instead of hanging', async () => {
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => { const e = new Error('The operation was aborted due to timeout'); e.name = 'TimeoutError'; throw e; };
+  try {
+    const api = new TikTokApi({ getCookies: async () => [] });
+    await assert.rejects(api.getCreateInfo(), /timed out after 20 s/);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
