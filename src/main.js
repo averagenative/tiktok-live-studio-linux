@@ -13,12 +13,13 @@ const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studio
 
 app.setName('LIVE Studio for Linux');
 
-// GNOME only lets X11 windows keep themselves on top, which the pinned window
-// needs, so run through XWayland. LSL_WAYLAND=1 opts out.
-// Chromium's default GL under XWayland crashes the GPU process on hybrid
-// Intel/NVIDIA laptops; ANGLE on EGL works. LSL_ANGLE picks another backend
-// (vulkan, swiftshader).
-if (process.platform === 'linux' && !process.env.LSL_WAYLAND) {
+// Native Wayland by default: on GNOME, Wayland windows can't pin themselves on
+// top, so the pinned window relies on GNOME's window menu (Alt+Space, Always
+// on Top). LSL_X11=1 runs through XWayland instead, where the app can pin the
+// window and set opacity and click-through itself; on hybrid Intel/NVIDIA
+// laptops that mode may fail to create windows at all.
+const X11 = process.platform === 'linux' && !!process.env.LSL_X11;
+if (X11) {
   app.commandLine.appendSwitch('ozone-platform', 'x11');
   app.commandLine.appendSwitch('use-angle', process.env.LSL_ANGLE || 'gl-egl');
 }
@@ -420,11 +421,16 @@ let pinWin = null;
 let saveBoundsTimer = null;
 
 function pinState() {
-  return { open: !!(pinWin && !pinWin.isDestroyed()), opacity: settings.pinOpacity, clickThrough: settings.pinClickThrough };
+  return {
+    open: !!(pinWin && !pinWin.isDestroyed()),
+    opacity: settings.pinOpacity,
+    clickThrough: settings.pinClickThrough,
+    selfPin: X11,
+  };
 }
 
 function applyPinLook() {
-  if (!pinWin || pinWin.isDestroyed()) return;
+  if (!pinWin || pinWin.isDestroyed() || !X11) return;
   pinWin.setOpacity(Math.min(1, Math.max(0.2, Number(settings.pinOpacity) || 1)));
   pinWin.setIgnoreMouseEvents(!!settings.pinClickThrough, { forward: true });
 }

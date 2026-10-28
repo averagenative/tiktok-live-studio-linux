@@ -105,6 +105,11 @@ function renderObs() {
 
 function renderPin(p) {
   view.pin = p || view.pin || { open: false };
+  document.querySelectorAll('.x11-only').forEach((el) => show(el, !!view.pin.selfPin));
+  if (view.pin.selfPin) {
+    $('pin-hint').textContent = 'The window keeps itself on top. With click-through on, clicks go to the game underneath; '
+      + 'turn it off here to move, resize, or scroll the window.';
+  }
   show($('pin-open'), true);
   $('pin-open').textContent = view.pin.open ? 'Load page' : 'Open pinned window';
   show($('pin-close'), !!view.pin.open);

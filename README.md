@@ -96,9 +96,9 @@ To stay off camera, select **Robot avatar instead of webcam** in the **OBS** pan
 
 ## Pinned window
 
-The **Pinned window** panel keeps any web page on top of every other window, including a game, so you can keep your own LIVE page or anything else in view while you play. Enter the address (your LIVE page is filled in after you log in), click **Open pinned window**, and set the opacity. Select **Click-through** to send your clicks to the game underneath; clear it to move, resize, or scroll the window. The app remembers the address, size, and position.
+The **Pinned window** panel opens any web page in its own window that you can keep on top of your game, for example your own LIVE page (it's filled in after you log in). Click **Open pinned window**, then click the new window, press **Alt+Space**, and choose **Always on Top**. The app remembers the address, size, and position. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen.
 
-To keep itself on top on GNOME, the app runs through XWayland. If a fullscreen game still covers the window, switch the game to borderless or windowed fullscreen. To run the app as a native Wayland client instead, start it with `LSL_WAYLAND=1`; the window then can't keep itself on top.
+GNOME doesn't let native Wayland apps pin their own windows, which is why the pinned window uses GNOME's window menu. Starting the app with `LSL_X11=1` runs it through XWayland instead, where the pinned window keeps itself on top and offers opacity and click-through. On some hybrid Intel/NVIDIA laptops that mode fails to open windows at all.
 
 ## Optional OBS extras
 
