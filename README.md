@@ -1,6 +1,8 @@
 # LIVE Studio for Linux (unofficial)
 
-A Linux desktop app that starts a TikTok LIVE and points OBS Studio at it, so you can go LIVE from Linux without a TikTok stream key.
+**Go LIVE on TikTok from Linux with OBS Studio, without a stream key.** LIVE Studio for Linux is an unofficial, open-source alternative to TikTok LIVE Studio, which TikTok makes for Windows and macOS only. It handles the TikTok side (logging in, creating the LIVE, getting the stream URL, and ending the LIVE) and drives OBS for capture and encoding. It ships as an AppImage for x86_64 Linux.
+
+![LIVE Studio for Linux: the main window with account, OBS, pinned window, and Go LIVE panels](docs/images/app.png)
 
 > **Unofficial and unsupported.** This project is not made by, affiliated with, or endorsed by TikTok or ByteDance. TikTok publishes LIVE Studio for Windows and macOS only. This app talks to TikTok's servers the same way the official LIVE Studio app does, using your own login. TikTok can change or block that at any time, and using a client TikTok didn't make might go against [TikTok's Terms of Service](https://www.tiktok.com/legal/page/us/terms-of-service/en). Your account is your responsibility. There is no warranty and no support. If you need something reliable, use TikTok's official tools.
 
@@ -21,6 +23,10 @@ Version 0.1.0 has gone LIVE end to end with a real account: log in, create the r
 - Opens a pinned window that keeps a web page, such as your LIVE page's viewers and comments panel, on top of your game.
 
 OBS does all of the capture, scenes, and encoding. This app handles the TikTok side.
+
+![Vertical TikTok scenes the app builds in OBS: Starting Soon, Screen + Robot with a game window and the robot avatar, Be Right Back, and Ending](docs/images/scenes.png)
+
+![The robot avatar's poses: resting, cheering with both arms up, shrugging, brushing off a shoulder, turning its head, and tilting its head](docs/images/robot-poses.png)
 
 ## Requirements
 
@@ -186,6 +192,36 @@ The code is plain CommonJS with no build step:
 | `src/pin-isolate.js`, `src/pin/` | Pinned window panel-only view and its shell |
 | `src/util.js` | Pure helpers shared by the rest |
 | `src/renderer/` | The app's UI |
+
+## FAQ
+
+### Can I run TikTok LIVE Studio on Linux?
+
+Not the official app: TikTok publishes LIVE Studio for Windows and macOS only, and its media engine and networking are native code built for those systems (see [Why not run the official app directly](#why-not-run-the-official-app-directly)). LIVE Studio for Linux does the same job on Linux, with OBS Studio doing the capture and encoding.
+
+### Do I need a TikTok stream key?
+
+No. The app gets the stream URL for each LIVE the way LIVE Studio does. Your account needs LIVE Studio access instead, which the app checks for you.
+
+### Why does it say "you have no live auth"?
+
+Your account doesn't have LIVE Studio access yet. TikTok grants that separately from going LIVE in the phone app. Use **Apply for LIVE Studio access** in the **Account** panel.
+
+### Which Linux distributions does it work on?
+
+It's developed and tested on Fedora 44 with GNOME on Wayland. The AppImage should run on other recent x86_64 distributions, such as Ubuntu, Debian, Arch, and openSUSE, but those are untested. Reports are welcome.
+
+### Can I use it without OBS?
+
+Clear **Drive OBS automatically**, and the app shows the server and stream key for each LIVE, so any streaming software that supports custom RTMP can use them. The scene setup and the robot avatar need OBS.
+
+### Can I go LIVE without showing my face?
+
+Yes. **Robot avatar instead of webcam** replaces your webcam with an animated robot that talks when you do. See [Robot avatar](#robot-avatar).
+
+### Is this made by TikTok?
+
+No. It's an unofficial project, not affiliated with or endorsed by TikTok or ByteDance. See the notice at the top of this page.
 
 ## Roadmap
 
