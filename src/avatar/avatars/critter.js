@@ -2,9 +2,16 @@
 
 // A builder for the animal avatars: a round head with ears, big eyes, a nose
 // and a mouth that opens with the voice, and a round body whose arms sit on
-// the robot's skeleton (so every gesture works). Each one wears streaming
-// headphones (#25f4ee) and a scarf (#fe2c55), which take the scene theme's
-// colors.
+// the robot's skeleton (so every gesture works). Each animal brings its own
+// outfit as SVG layers, drawn in this order:
+//   back      behind the neck
+//   neck      over the body, under the arms (collars, ties, hoodie details)
+//   headBack  behind the ears and head (headphone bands)
+//   faceTop   on the face, so it turns with it (glasses)
+//   headTop   over the whole head (cups, hats)
+// Parts in #25f4ee and #fe2c55 take the scene theme's colors. Headphone cups
+// with ids cupL and cupR slide with head turns, elements with class "led"
+// pulse, and animate(pose, { $, setT }) moves anything else.
 window.makeCritter = function makeCritter(o) {
   const ink = o.ink;
   const eyeAt = [[385, 445], [575, 445]];
@@ -63,6 +70,7 @@ window.makeCritter = function makeCritter(o) {
         <circle cx="${x}" cy="888" r="54" fill="${o.arm}" stroke="${ink}" stroke-width="6"/>
         <g id="fore${id}">
           <rect x="${x - 38}" y="1068" width="76" height="205" rx="38" fill="${o.arm}" stroke="${ink}" stroke-width="6"/>
+          ${o.cuff ? `<rect x="${x - 42}" y="1196" width="84" height="36" rx="16" fill="${o.cuff}" stroke="${ink}" stroke-width="6"/>` : ''}
           <circle cx="${x}" cy="1270" r="46" fill="${o.paw}" stroke="${ink}" stroke-width="6"/>
           <g fill="${o.pads}"><ellipse cx="${x}" cy="1282" rx="17" ry="13"/><circle cx="${x - 22}" cy="1252" r="8"/>
           <circle cx="${x}" cy="1244" r="8"/><circle cx="${x + 22}" cy="1252" r="8"/></g>
@@ -75,29 +83,29 @@ window.makeCritter = function makeCritter(o) {
       <radialGradient id="headFur" cx="0.45" cy="0.35" r="0.75">
         <stop offset="0" stop-color="${o.furLight}"/><stop offset="1" stop-color="${o.fur}"/>
       </radialGradient>
+      <clipPath id="headShape"><ellipse cx="480" cy="455" rx="247" ry="212"/></clipPath>
       <linearGradient id="bodyFur" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="${o.body}"/><stop offset="1" stop-color="${o.bodyDark}"/>
       </linearGradient>
     </defs>
     <g id="critter">
       <g id="torso">
+        ${o.back || ''}
         <rect x="392" y="600" width="176" height="220" rx="70" fill="${o.fur}" stroke="${ink}" stroke-width="6"/>
         <path d="M150 1280 L150 965 Q150 800 330 772 L630 772 Q810 800 810 965 L810 1280 Z" fill="url(#bodyFur)" stroke="${ink}" stroke-width="6"/>
-        <ellipse cx="480" cy="1090" rx="190" ry="215" fill="${o.belly}"/>
-        <path d="M296 772 Q480 858 664 772 L656 816 Q480 908 304 816 Z" fill="#fe2c55" stroke="${ink}" stroke-width="5" stroke-linejoin="round"/>
-        <path d="M600 830 L660 960 L610 952 L585 1000 L560 846 Z" fill="#fe2c55" stroke="${ink}" stroke-width="5" stroke-linejoin="round"/>
+        ${o.belly ? `<ellipse cx="480" cy="1090" rx="190" ry="215" fill="${o.belly}"/>` : ''}
+        ${o.neck || ''}
         ${arm(-1)}
         ${arm(1)}
       </g>
       <g id="head"><g transform="translate(0 36)">
-        <path d="M228 470 Q228 168 480 168 Q732 168 732 470" fill="none" stroke="#2c3240" stroke-width="30" stroke-linecap="round"/>
-        <path d="M244 420 Q250 190 480 186 Q710 190 716 420" fill="none" stroke="#25f4ee" stroke-width="6" stroke-linecap="round" opacity="0.8"/>
+        ${o.headBack || ''}
         <g id="earL">${ears[o.ears](-1)}</g>
         <g id="earR">${ears[o.ears](1)}</g>
         <ellipse cx="480" cy="455" rx="250" ry="215" fill="url(#headFur)" stroke="${ink}" stroke-width="6"/>
         ${o.extra || ''}
+        <g clip-path="url(#headShape)"><g id="muzzle">${o.muzzle}</g></g>
         <g id="face">
-          ${o.muzzle}
           ${eye(eyeAt[0], 0)}
           ${eye(eyeAt[1], 1)}
           <ellipse id="cheekL" cx="322" cy="548" rx="38" ry="22" fill="#ff8fab" opacity="0.35"/>
@@ -105,11 +113,9 @@ window.makeCritter = function makeCritter(o) {
           ${whiskers}
           <path d="M456 506 Q480 496 504 506 Q494 528 480 532 Q466 528 456 506 Z" fill="${o.nose}" stroke="${ink}" stroke-width="4" stroke-linejoin="round"/>
           ${mouth}
+          ${o.faceTop || ''}
         </g>
-        <g id="cupL"><rect x="192" y="382" width="74" height="176" rx="32" fill="#2c3240" stroke="#25f4ee" stroke-width="6"/>
-          <circle class="led" cx="229" cy="470" r="12" fill="#fe2c55"/></g>
-        <g id="cupR"><rect x="694" y="382" width="74" height="176" rx="32" fill="#2c3240" stroke="#25f4ee" stroke-width="6"/>
-          <circle class="led" cx="731" cy="470" r="12" fill="#fe2c55"/></g>
+        ${o.headTop || ''}
       </g></g>
     </g>`;
 
@@ -125,6 +131,8 @@ window.makeCritter = function makeCritter(o) {
     },
     apply(p, { $, setT }) {
       const { t, L, C, turn } = p;
+      // The muzzle moves with the face but stays inside the head's outline.
+      setT('muzzle', $('face').getAttribute('transform'));
       // Blinks and squints squash the eyes around their centers.
       const s = Math.max(0.08, Math.min(1.1, p.open * Math.min(1.1, p.squint)));
       eyeAt.forEach(([cx, cy], i) => {
@@ -150,6 +158,7 @@ window.makeCritter = function makeCritter(o) {
       setT('cupR', `translate(${(turn * 10).toFixed(1)} 0)`);
       for (const c of ['cheekL', 'cheekR']) $(c).setAttribute('opacity', (0.25 + L * 0.45 + C * 0.25).toFixed(2));
       this.leds.forEach((e) => e.setAttribute('opacity', (0.5 + p.pulse * 0.3 + L * 0.2).toFixed(2)));
+      o.animate?.(p, { $, setT });
     },
   };
 };

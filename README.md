@@ -134,13 +134,13 @@ To stay off camera, select **Avatar instead of webcam** in the **OBS** panel and
 | Avatar | Look |
 |---|---|
 | **Robot** | A visor face with LED eyes, an equalizer mouth, and a glowing antenna and core |
-| **Cat** | A ginger tabby with whiskers and a pink nose |
-| **Fox** | A red fox with a white face and dark ear tips |
-| **Panda** | Black eye patches, round ears, and black arms |
+| **Cat** | A ginger tabby in a gaming headset with a boom mic, and a collar with a bell |
+| **Fox** | A red fox in a backwards cap, retro foam headphones, and a hoodie |
+| **Panda** | A panda in padded studio headphones, round glasses, and a bow tie |
 
 ![The four avatars: the robot talking, the cat cheering with both paws up, the fox tilting its head, and the panda shrugging](docs/images/avatars.jpg)
 
-The avatar replaces your webcam in the **Camera** and **Screen + Camera** scenes, and the **Screen + Avatar** scene always shows it. It blinks, bobs, and moves its mouth when your mic picks up your voice. When you get loud, it throws both arms up in a cheer. It also moves on its own: head tilts, turns, and nods while you talk, and shrugs or brushes off a shoulder in quieter moments. The animals wear streaming headphones and a scarf, and every avatar takes on the colors of your scene theme. Your webcam is hidden from the stream while the avatar is on. Clear the option to switch back.
+The avatar replaces your webcam in the **Camera** and **Screen + Camera** scenes, and the **Screen + Avatar** scene always shows it. It blinks, bobs, and moves its mouth when your mic picks up your voice. When you get loud, it throws both arms up in a cheer. It also moves on its own: head tilts, turns, and nods while you talk, and shrugs or brushes off a shoulder in quieter moments. Every avatar takes on the colors of your scene theme, outfit included. Your webcam is hidden from the stream while the avatar is on. Clear the option to switch back.
 
 - Switching avatars in the menu updates the avatar in OBS right away, with no need to run the setup again.
 - The avatar is an OBS **Browser** source that loads `http://127.0.0.1:47812/avatar` from this app, so keep the app running while you're LIVE.
