@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: blob:; font-src 'self'; style-src 'self'; script-src 'self'; frame-src http://127.0.0.1:*; connect-src 'none'">
+  <title>Scene themes - LIVE Studio for Linux</title>
+  <link rel="stylesheet" href="../renderer/style.css">
+  <link rel="stylesheet" href="picker.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>Scene themes</h1>
+    </div>
+    <span id="handle-note" class="muted small"></span>
+  </header>
+
+  <div class="picker">
+    <fieldset class="themes" id="themes">
+      <legend class="sr-only">Scene theme</legend>
+    </fieldset>
+
+    <section class="card preview" aria-labelledby="theme-name">
+      <div class="preview-head">
+        <h2 id="theme-name"></h2>
+        <p id="theme-desc" class="muted small"></p>
+      </div>
+      <div class="scenes" id="scenes"></div>
+    </section>
+  </div>
+
+  <footer class="actions">
+    <div class="notes">
+      <p id="apply-note" class="muted small"></p>
+      <p id="status" class="status small" hidden></p>
+    </div>
+    <button id="close">Close</button>
+    <button id="apply" class="primary">Apply to OBS</button>
+  </footer>
+
+  <script src="layout.js"></script>
+  <script src="themes.js"></script>
+  <script src="art.js"></script>
+  <script src="picker.js"></script>
+</body>
+</html>

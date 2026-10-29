@@ -2,10 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { setupTikTok, abgr, sceneLayouts } = require('../src/obs-setup');
+const { setupTikTok, abgr, sceneLayouts, TEXT_SOURCES } = require('../src/obs-setup');
 
 // A fake obs-websocket that keeps just enough state to answer the setup.
-function fakeObs({ profiles = ['Untitled'], collections = ['Untitled'], special = {} } = {}) {
+function fakeObs({ profiles = ['Untitled'], collections = ['Untitled'], special = {}, at = 10 } = {}) {
   const calls = [];
   const st = {
     profile: profiles[0], profiles: [...profiles], collections: [...collections],
@@ -34,7 +34,7 @@ function fakeObs({ profiles = ['Untitled'], collections = ['Untitled'], special 
     GetSpecialInputs: () => st.special,
     GetSceneItemList: ({ sceneName }) => ({
       sceneItems: st.scenes.get(sceneName).map((i) => ({
-        sceneItemTransform: { positionX: 10, positionY: 10, scaleX: 1, scaleY: 1, rotation: 0, boundsType: 'OBS_BOUNDS_NONE' }, ...i,
+        sceneItemTransform: { positionX: at, positionY: at, scaleX: 1, scaleY: 1, rotation: 0, boundsType: 'OBS_BOUNDS_NONE' }, ...i,
       })),
     }),
     CreateInput: ({ sceneName, inputName, inputKind }) => { st.inputs.set(inputName, inputKind); return addItem(sceneName, inputName); },
@@ -105,7 +105,7 @@ test('setup creates the profile, reloads it, and builds every scene in layer ord
   const created = obs.calls.filter((c) => c[0] === 'CreateScene').map(([, d]) => d.sceneName);
   assert.equal(created[0], 'Ending', 'scenes are created last-to-first so OBS lists them in order');
   assert.ok(!obs.st.scenes.has('Scene'), 'the empty default scene is removed');
-  assert.deepEqual([...obs.st.scenes.keys()].sort(), Object.keys(sceneLayouts({ overlays: true, capture: true, handle: '@x' })).sort());
+  assert.deepEqual([...obs.st.scenes.keys()].sort(), Object.keys(sceneLayouts({ art: true, capture: true, handle: '@x' })).sort());
 
   const inputs = obs.calls.filter((c) => c[0] === 'CreateInput').map(([, d]) => d.inputName);
   assert.equal(new Set(inputs).size, inputs.length, 'each source is created once and reused');
@@ -116,8 +116,10 @@ test('setup creates the profile, reloads it, and builds every scene in layer ord
   assert.equal(obs.st.inputs.get('Background'), 'image_source');
   assert.ok(obs.calls.some((c) => c[0] === 'SetInputSettings' && c[1].inputSettings.device_id === '/dev/video0'));
 
-  assert.deepEqual(order(obs, 'Screen + Camera').slice(0, 5), ['Background', 'Game Window', 'Webcam', 'Frame: Screen + Camera', 'Handle']);
+  assert.deepEqual(order(obs, 'Screen + Camera').slice(0, 4), ['Background', 'Game Window', 'Webcam', 'Frame: Screen + Camera']);
   for (const scene of obs.st.scenes.keys()) {
+    assert.ok(order(obs, scene).includes(`Frame: ${scene}`), `frame in ${scene}`);
+    assert.ok(!order(obs, scene).some((n) => TEXT_SOURCES.includes(n)), `no text sources in ${scene}: the frame has the text`);
     assert.ok(order(obs, scene).includes('Mic') && order(obs, scene).includes('Desktop Audio'), `audio in ${scene}`);
   }
   assert.deepEqual(obs.st.filters.get('Mic'), ['Noise Suppression', 'Compressor', 'Limiter']);
@@ -138,9 +140,9 @@ test('re-running repairs a half-built collection without touching user items', a
   assert.equal(obs.st.inputs.get('Background'), 'image_source', 'plain background swapped for the artwork');
   assert.ok(!obs.st.inputs.has('Background (old)'));
   const sc = order(obs, 'Screen + Camera');
-  assert.deepEqual(sc.slice(0, 5), ['Background', 'Game Window', 'Webcam', 'Frame: Screen + Camera', 'Handle']);
+  assert.deepEqual(sc.slice(0, 4), ['Background', 'Game Window', 'Webcam', 'Frame: Screen + Camera']);
   assert.ok(sc.includes('My Overlay'), 'user source kept');
-  assert.ok(sc.indexOf('My Overlay') > sc.indexOf('Handle'), 'user source stays above ours');
+  assert.ok(sc.indexOf('My Overlay') > sc.indexOf('Frame: Screen + Camera'), 'user source stays above ours');
   assert.ok(!obs.st.scenes.has('Scene'));
 
   const again = await setupTikTok(obs, { handle: 'yourhandle', assetsDir: '/tmp/a' });
@@ -172,7 +174,7 @@ test('with the avatar URL, Screen + Robot puts the game on top and the full robo
   const obs = fakeObs();
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar' });
   assert.ok(obs.st.scenes.has('Screen + Robot'));
-  assert.deepEqual(order(obs, 'Screen + Robot').slice(0, 5), ['Background', 'Game Window', 'Frame: Screen + Robot', 'Robot (full)', 'Handle']);
+  assert.deepEqual(order(obs, 'Screen + Robot').slice(0, 4), ['Background', 'Game Window', 'Frame: Screen + Robot', 'Robot (full)']);
   const robot = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Robot (full)')[1];
   assert.equal(robot.inputKind, 'browser_source');
   assert.equal(robot.inputSettings.url, 'http://127.0.0.1:47812/avatar');
@@ -216,4 +218,48 @@ test('no source shares a name with a scene (OBS refuses duplicates across both)'
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar' });
   const scenes = new Set(obs.st.scenes.keys());
   for (const name of obs.st.inputs.keys()) assert.ok(!scenes.has(name), `source "${name}" collides with a scene`);
+});
+
+const settingsFor = (obs, inputName) => obs.calls.filter((c) => c[0] === 'SetInputSettings' && c[1].inputName === inputName).map((c) => c[1].inputSettings);
+
+test('applying another theme repoints the artwork and robot, and drops the old text sources', async () => {
+  const obs = fakeObs();
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/neon', avatarUrl: 'http://127.0.0.1:47812/avatar?c1=25f4ee' });
+  const created = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Frame: Starting Soon')[1];
+  assert.equal(created.inputSettings.file, '/tmp/neon/frame-starting-soon.png');
+  // A setup from before themes: text sources on top of the scenes.
+  obs.st.inputs.set('Title: Starting', 'text_ft2_source_v2');
+  obs.st.scenes.get('Starting Soon').push({ sourceName: 'Title: Starting', sceneItemId: 800 });
+  obs.st.inputs.set('Handle', 'text_ft2_source_v2');
+  obs.st.scenes.get('Screen').push({ sourceName: 'Handle', sceneItemId: 801 });
+
+  const res = await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/arcade', avatarUrl: 'http://127.0.0.1:47812/avatar?c1=39ff14' });
+  assert.equal(res.added, 0);
+  assert.ok(res.updated >= 8, 'background and every frame repointed');
+  assert.equal(settingsFor(obs, 'Background').at(-1).file, '/tmp/arcade/bg.png');
+  assert.equal(settingsFor(obs, 'Frame: Ending').at(-1).file, '/tmp/arcade/frame-ending.png');
+  assert.equal(settingsFor(obs, 'Robot (full)').at(-1).url, 'http://127.0.0.1:47812/avatar?c1=39ff14');
+  assert.ok(!obs.st.inputs.has('Title: Starting') && !obs.st.inputs.has('Handle'), 'old text sources removed');
+  assert.ok(!order(obs, 'Starting Soon').includes('Title: Starting'));
+});
+
+test('without artwork (OBS on another machine), scenes get a plain color and text sources', async () => {
+  const obs = fakeObs();
+  await setupTikTok(obs, { handle: 'x', assetsDir: null });
+  assert.equal(obs.st.inputs.get('Background'), 'color_source_v3');
+  assert.deepEqual(order(obs, 'Starting Soon').slice(0, 4), ['Background', 'Title: Starting', 'Handle', 'Subtitle: Starting']);
+  assert.deepEqual(order(obs, 'Ending').slice(0, 4), ['Background', 'Title: Ending 1', 'Title: Ending 2', 'Follow']);
+  assert.ok(order(obs, 'Screen').includes('Handle'));
+  assert.ok(![...obs.st.inputs.keys()].some((n) => n.startsWith('Frame:')), 'no frames without artwork');
+  const noHandle = fakeObs();
+  await setupTikTok(noHandle, { handle: '', assetsDir: null });
+  assert.ok(!noHandle.st.inputs.has('Handle') && !noHandle.st.inputs.has('Follow'), 'no handle lines without a handle');
+});
+
+test('a re-run counts no changes for full-canvas layers sitting at the default spot', async () => {
+  // Real OBS reports 0,0 for items we placed at 0,0, the same as a fresh item.
+  const obs = fakeObs({ at: 0 });
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', capture: false });
+  const again = await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', capture: false });
+  assert.equal(again.added, 0);
 });

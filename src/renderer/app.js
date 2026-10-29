@@ -116,7 +116,6 @@ function renderObs() {
   $('obs-status').textContent = o.connected ? `connected (obs-websocket ${o.version})` : o.error ? hideHost(o.error) : 'not connected';
   show($('obs-connect'), !o.connected);
   show($('obs-disconnect'), o.connected);
-  $('obs-setup').disabled = !o.connected;
   renderLive();
 }
 
@@ -292,22 +291,7 @@ function wire() {
     view.settings = { ...view.settings, pinClickThrough: e.target.checked };
     renderPin(await api.pinSet({ clickThrough: e.target.checked }));
   }));
-  $('obs-setup').addEventListener('click', (e) => act(e.target, async () => {
-    const el = $('setup-status');
-    el.hidden = false;
-    el.className = 'status small';
-    el.textContent = 'Setting up OBS... if GNOME asks, pick the window or screen to share.';
-    try {
-      const r = await api.obsSetup();
-      const what = r.created ? 'Created the TikTok Vertical profile and scenes.' : `Repaired the TikTok Vertical scenes (${r.added} change${r.added === 1 ? '' : 's'}).`;
-      el.textContent = r.warnings.length ? `${what} Check: ${r.warnings.join('; ')}` : `${what} All set.`;
-      el.className = `status small ${r.warnings.length ? 'err' : 'ok'}`;
-    } catch (err) {
-      el.textContent = `Setup failed: ${err.message}`;
-      el.className = 'status small err';
-      throw err;
-    }
-  }));
+  $('obs-setup').addEventListener('click', (e) => act(e.target, () => api.openScenes()));
   $('vertical').addEventListener('change', (e) => saveSetting({ vertical: e.target.checked }));
 
   $('go').addEventListener('click', (e) => act(e.target, async () => {
@@ -343,6 +327,14 @@ function wire() {
     if (!$('pin-url').value && a.account?.username) $('pin-url').value = `https://www.tiktok.com/@${a.account.username}/live`;
   });
   api.onPin(renderPin);
+  api.onSetup((r) => {
+    const el = $('setup-status');
+    const what = r.created ? `Created the TikTok Vertical profile and scenes with the ${r.themeName} theme.`
+      : `Applied the ${r.themeName} theme to the TikTok Vertical scenes.`;
+    el.hidden = false;
+    el.textContent = r.warnings.length ? `${what} Check: ${r.warnings.join('; ')}` : `${what} All set.`;
+    el.className = `status small ${r.warnings.length ? 'err' : 'ok'}`;
+  });
 }
 
 async function init() {

@@ -4,27 +4,31 @@
 // a "TikTok Vertical" profile (1080x1920, NVENC, TikTok-friendly bitrate)
 // and a scene collection with styled scenes. It only ever creates new
 // profiles/collections; it never edits the user's existing ones.
+//
+// With artwork (OBS on this machine), each scene is a themed background, its
+// sources, and a frame image the theme picker drew, text included. Without
+// it (OBS elsewhere), scenes use a plain color and OBS text sources.
+
+const { W, H, HOLES, ROBOT_FULL, SCENES, BG_FILE, frameFile } = require('./scenes/layout');
 
 const PROFILE = 'TikTok Vertical';
 // The window/screen capture. Not "Screen": OBS sources and scenes share one
 // namespace, and there's a scene called Screen.
 const CAPTURE = 'Game Window';
 const COLLECTION = 'TikTok Vertical';
-const W = 1080;
-const H = 1920;
 
-// Windows cut into the overlay artwork (see scripts/make-obs-assets.sh).
-// Sources sit under the overlay, sized a few pixels past each window.
-const HOLES = {
-  camera: { x: 60, y: 210, w: 960, h: 1280 },
-  sc_cam: { x: 150, y: 170, w: 780, h: 439 },
-  sc_screen: { x: 30, y: 650, w: 1020, h: 574 },
-  screen: { x: 20, y: 560, w: 1040, h: 585 },
-  sr_screen: { x: 20, y: 170, w: 1040, h: 585 },
+// Text sources for plain scenes, in the order of each scene's text lines
+// (scenes/layout.js); any other scene's one line is the handle. Setups from
+// before themes made these for every scene, and themed setups remove them
+// because the frames carry the text.
+const PLAIN_TEXT = {
+  'Starting Soon': ['Title: Starting', 'Handle', 'Subtitle: Starting'],
+  'Be Right Back': ['Title: BRB', 'Handle'],
+  Ending: ['Title: Ending 1', 'Title: Ending 2', 'Follow'],
 };
-
-// The free-standing robot under the game in "Screen + Robot".
-const ROBOT_FULL = { x: 0, y: 790, w: W, h: H - 790 };
+const TEXT_SOURCES = [...new Set([...Object.values(PLAIN_TEXT).flat(), 'Handle'])];
+const ROBOT_SOURCES = ['Robot (full)', 'Robot', 'Robot (wide)'];
+const frameSource = (sceneName) => `Frame: ${sceneName}`;
 
 // obs-browser's default page CSS: transparent background.
 const BROWSER_CSS = 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }';
@@ -72,44 +76,24 @@ const FULL = { positionX: 0, positionY: 0, alignment: ALIGN_TOP_LEFT };
 const centered = (y) => ({ positionX: W / 2, positionY: y, alignment: ALIGN_CENTER });
 
 // Scene layouts, bottom layer first. Each entry is [sourceName, transform].
-function sceneLayouts({ overlays, capture, handle, robot = false }) {
-  const at = (y) => (handle ? [['Handle', centered(y)]] : []);
-  return {
-    'Starting Soon': [['Background', FULL], ['Title: Starting', centered(820)], ...at(990), ['Subtitle: Starting', centered(1080)]],
-    Camera: [
-      ['Background', FULL],
-      ...(capture ? [['Webcam', slot(HOLES.camera)]] : []),
-      ...(overlays ? [['Frame: Camera', FULL]] : []),
-      ...at(1570),
-    ],
-    'Screen + Camera': [
-      ['Background', FULL],
-      ...(capture ? [[CAPTURE, slot(HOLES.sc_screen)], ['Webcam', slot(HOLES.sc_cam)]] : []),
-      ...(overlays ? [['Frame: Screen + Camera', FULL]] : []),
-      ...at(1300),
-    ],
-    ...(robot ? {
-      'Screen + Robot': [
-        ['Background', FULL],
-        ...(capture ? [[CAPTURE, slot(HOLES.sr_screen)]] : []),
-        // Above the overlay: the overlay is opaque outside its game window.
-        ...(overlays ? [['Frame: Screen + Robot', FULL]] : []),
-        ['Robot (full)', { positionX: ROBOT_FULL.x, positionY: ROBOT_FULL.y, alignment: ALIGN_TOP_LEFT }],
-        ...at(822),
-      ],
-    } : {}),
-    Screen: [
-      ['Background', FULL],
-      ...(capture ? [[CAPTURE, slot(HOLES.screen)]] : []),
-      ...(overlays ? [['Frame: Screen', FULL]] : []),
-      ...at(1240),
-    ],
-    'Be Right Back': [['Background', FULL], ['Title: BRB', centered(820)], ...at(990)],
-    Ending: [
-      ['Background', FULL], ['Title: Ending 1', centered(770)], ['Title: Ending 2', centered(880)],
-      ...(handle ? [['Follow', centered(1040)]] : []),
-    ],
-  };
+function sceneLayouts({ art, capture, handle, robot = false }) {
+  const layouts = {};
+  for (const scene of SCENES) {
+    if (scene.robot && !robot) continue;
+    const items = [['Background', FULL]];
+    if (capture) for (const h of scene.holes) items.push([h.shows === 'game' ? CAPTURE : 'Webcam', slot(h)]);
+    if (art) items.push([frameSource(scene.name), FULL]);
+    // Above the frame: the frame is opaque outside its game window.
+    if (scene.robot) items.push(['Robot (full)', { positionX: ROBOT_FULL.x, positionY: ROBOT_FULL.y, alignment: ALIGN_TOP_LEFT }]);
+    if (!art) {
+      const names = PLAIN_TEXT[scene.name] || ['Handle'];
+      scene.text.forEach((line, i) => {
+        if (!line.text.includes('{handle}') || handle) items.push([names[i], centered(line.y)]);
+      });
+    }
+    layouts[scene.name] = items;
+  }
+  return layouts;
 }
 
 async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = null, capture = true, fps = 30, log = () => {} } = {}) {
@@ -168,8 +152,8 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
     say(`created scene collection "${COLLECTION}"`);
   }
 
-  const overlays = !!assetsDir;
-  const layouts = sceneLayouts({ overlays, capture, handle: at, robot: !!avatarUrl });
+  const art = !!assetsDir;
+  const layouts = sceneLayouts({ art, capture, handle: at, robot: !!avatarUrl });
   const sceneNames = Object.keys(layouts);
   const { scenes: before } = await obs.call('GetSceneList');
   const haveScene = new Set(before.map((x) => x.sceneName));
@@ -183,13 +167,10 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
   const captureKind = ['pipewire-window-capture-source', 'pipewire-screen-capture-source'].find((k) => inputKinds.includes(k));
   const file = (n) => `${assetsDir}/${n}`;
   const defs = {
-    Background: overlays
-      ? { kind: 'image_source', settings: { file: file('bg.png') } }
+    Background: art
+      ? { kind: 'image_source', settings: { file: file(BG_FILE) } }
       : { kind: 'color_source_v3', settings: { color: abgr('#101218'), width: W, height: H } },
-    'Frame: Camera': { kind: 'image_source', settings: { file: file('overlay-camera.png') } },
-    'Frame: Screen + Camera': { kind: 'image_source', settings: { file: file('overlay-screen-camera.png') } },
-    'Frame: Screen': { kind: 'image_source', settings: { file: file('overlay-screen.png') } },
-    'Frame: Screen + Robot': { kind: 'image_source', settings: { file: file('overlay-screen-robot.png') } },
+    ...Object.fromEntries(SCENES.map((sc) => [frameSource(sc.name), { kind: 'image_source', settings: { file: file(frameFile(sc.name)) } }])),
     'Robot (full)': {
       kind: 'browser_source',
       settings: {
@@ -220,6 +201,27 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
     inputKind.set('Background (old)', 'old');
   }
 
+  // A new theme: point the existing artwork and robots at the new files and
+  // colors. The frames carry the text now, so the old text sources go.
+  let updated = 0;
+  if (art) {
+    for (const name of ['Background', ...SCENES.map((sc) => frameSource(sc.name))]) {
+      if (inputKind.get(name) !== 'image_source') continue;
+      await obs.call('SetInputSettings', { inputName: name, inputSettings: defs[name].settings });
+      updated += 1;
+    }
+    for (const name of TEXT_SOURCES.filter((n) => inputKind.has(n))) {
+      await removeEverywhere(obs, name);
+      inputKind.delete(name);
+      say(`removed "${name}" (the theme's frames carry the text)`);
+    }
+  }
+  if (avatarUrl) {
+    for (const name of ROBOT_SOURCES.filter((n) => inputKind.has(n))) {
+      await obs.call('SetInputSettings', { inputName: name, inputSettings: { url: avatarUrl } });
+    }
+  }
+
   // New collections don't get OBS's global Desktop Audio / Mic, so add our own
   // audio sources to every scene unless the collection already has them.
   const special = await obs.call('GetSpecialInputs');
@@ -240,8 +242,9 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
     const present = (await itemsOf(sceneName)).find((i) => i.sourceName === sourceName);
     if (present) {
       // A source the user added by hand (e.g. their own "Screen" capture) still
-      // sits at OBS's default spot; give it our layout. Anything moved stays put.
-      if (transform && isDefaultTransform(present.sceneItemTransform)) {
+      // sits at OBS's default spot; give it our layout. Anything moved stays put,
+      // and full-canvas layers already are at the default spot.
+      if (transform && transform !== FULL && isDefaultTransform(present.sceneItemTransform)) {
         await obs.call('SetSceneItemTransform', { sceneName, sceneItemId: present.sceneItemId, sceneItemTransform: transform });
         return true;
       }
@@ -318,7 +321,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
   await obs.call('SetCurrentSceneTransitionDuration', { transitionDuration: 300 }).catch(() => {});
 
   for (const w of warnings) say(`warning: ${w}`);
-  return { profile: PROFILE, collection: COLLECTION, created: !existed, added, scenes: sceneNames, warnings };
+  return { profile: PROFILE, collection: COLLECTION, created: !existed, added, updated, scenes: sceneNames, warnings };
 }
 
 function isDefaultTransform(t) {
@@ -457,4 +460,4 @@ async function setRobotAvatar(obs, { enabled, url, log = () => {} }) {
   return { scenes: slots.map((s) => s.scene) };
 }
 
-module.exports = { setupTikTok, setRobotAvatar, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, CAPTURE, HOLES, ROBOT_SLOTS };
+module.exports = { setupTikTok, setRobotAvatar, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, CAPTURE, HOLES, ROBOT_SLOTS, TEXT_SOURCES };

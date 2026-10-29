@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('ls', {
   applyStudio: () => call('account:apply-studio'),
   obsConnect: () => call('obs:connect'),
   obsDisconnect: () => call('obs:disconnect'),
-  obsSetup: () => call('obs:setup'),
+  openScenes: () => call('scenes:open'),
   setRobot: (enabled) => call('obs:robot', enabled),
   previewRobot: () => call('avatar:preview'),
   pinOpen: (url) => call('pin:open', url),
@@ -40,4 +40,5 @@ contextBridge.exposeInMainWorld('ls', {
   onObs: on('obs'),
   onAccount: on('account'),
   onPin: on('pin'),
+  onSetup: on('setup'),
 });

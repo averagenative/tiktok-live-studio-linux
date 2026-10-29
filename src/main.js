@@ -3,11 +3,14 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const crypto = require('node:crypto');
 const { app, BrowserWindow, WebContentsView, ipcMain, session, clipboard, shell, screen, safeStorage } = require('electron');
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
+const SceneLayout = require('./scenes/layout');
+const SceneThemes = require('./scenes/themes');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
 const { isolateScript, alphaScript, isTikTokLivePage, leavesLivePage, DIAG_SCRIPT } = require('./pin-isolate');
 const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
@@ -35,6 +38,7 @@ const BROWSER_UA = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, l
 
 let mainWin = null;
 let loginWin = null;
+let scenesWin = null;
 const logs = [];
 let account = null;
 let createInfo = null;
@@ -57,6 +61,7 @@ const DEFAULTS = {
   driveObs: true,
   useTikTokProfile: true,
   robotAvatar: false,
+  sceneTheme: SceneThemes.DEFAULT_THEME,
   pinUrl: '',
   pinClickThrough: false,
   pinPanelOnly: true,
@@ -114,6 +119,7 @@ function publicSettings() {
 
 function send(channel, payload) {
   if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send(channel, payload);
+  if (channel === 'obs' && scenesWin && !scenesWin.isDestroyed()) scenesWin.webContents.send(channel, payload);
 }
 
 function log(kind, message) {
@@ -369,32 +375,95 @@ function isThisMachine(host) {
   return Object.values(os.networkInterfaces()).flat().some((a) => a && a.address.toLowerCase() === h);
 }
 
-// Copy the scene artwork somewhere OBS can read it (the app's own files may
-// sit inside an AppImage mount or asar archive).
-function exportObsAssets() {
-  const src = path.join(__dirname, 'obs-assets');
-  const dest = path.join(app.getPath('userData'), 'obs-assets');
-  fs.mkdirSync(dest, { recursive: true });
-  for (const f of fs.readdirSync(src)) {
-    if (f.endsWith('.png')) fs.writeFileSync(path.join(dest, f), fs.readFileSync(path.join(src, f)));
-  }
-  return dest;
+// The robot page in a scene theme's colors.
+function robotUrl(themeId = settings.sceneTheme) {
+  const { c1, c2 } = SceneThemes.byId(themeId).robot;
+  return `${avatar.url}?c1=${c1.slice(1)}&c2=${c2.slice(1)}`;
 }
 
-ipcMain.handle('obs:setup', wrap(async () => {
+// ---- scene themes: the picker draws the artwork, OBS loads it from here -----
+
+function openScenes() {
+  if (scenesWin && !scenesWin.isDestroyed()) {
+    scenesWin.focus();
+    return;
+  }
+  scenesWin = new BrowserWindow({
+    width: 1240, height: 780, minWidth: 820, minHeight: 560, title: 'Scene themes - LIVE Studio for Linux',
+    autoHideMenuBar: true, backgroundColor: '#0f1115',
+    webPreferences: { preload: path.join(__dirname, 'scenes-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  scenesWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  scenesWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  scenesWin.on('closed', () => { scenesWin = null; });
+  scenesWin.loadFile(path.join(__dirname, 'scenes', 'picker.html'));
+}
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+// Save one theme's artwork in its own folder, named by its contents, so OBS
+// sees new paths and reloads the images.
+function writeSceneArt(themeId, files) {
+  const names = SceneLayout.artFiles();
+  const bufs = names.map((n) => {
+    const b = files?.[n];
+    const buf = b ? Buffer.from(b.buffer ? new Uint8Array(b.buffer, b.byteOffset, b.byteLength) : b) : null;
+    if (!buf || !buf.subarray(0, 4).equals(PNG_MAGIC)) throw new Error(`The scene artwork is missing ${n}`);
+    return buf;
+  });
+  const hash = crypto.createHash('sha1');
+  bufs.forEach((b) => hash.update(b));
+  const root = path.join(app.getPath('userData'), 'obs-assets');
+  const dir = path.join(root, `${themeId}-${hash.digest('hex').slice(0, 10)}`);
+  fs.mkdirSync(dir, { recursive: true });
+  names.forEach((n, i) => fs.writeFileSync(path.join(dir, n), bufs[i]));
+  return { root, dir };
+}
+
+// After OBS points at the new folder, drop older artwork (including the
+// files setups from before themes copied straight into obs-assets).
+function pruneSceneArt({ root, dir }) {
+  for (const f of fs.readdirSync(root)) {
+    if (f !== path.basename(dir)) fs.rmSync(path.join(root, f), { recursive: true, force: true });
+  }
+}
+
+ipcMain.handle('scenes:open', wrap(async () => openScenes()));
+ipcMain.handle('scenes:state', wrap(async () => ({
+  theme: SceneThemes.byId(settings.sceneTheme).id,
+  handle: account?.username ? `@${account.username}` : '',
+  privacy: !!settings.privacy,
+  robot: !!settings.robotAvatar,
+  avatarUrl: avatar.url,
+  local: isThisMachine(settings.obsHost),
+  obs: obsState(),
+  appTheme: settings.theme,
+})));
+ipcMain.handle('scenes:apply', wrap(async ({ theme, files } = {}) => {
   if (!obs.connected) throw new Error('Connect to OBS first');
+  if (!SceneThemes.THEMES.some((t) => t.id === theme)) throw new Error(`Unknown theme "${theme}"`);
   const local = isThisMachine(settings.obsHost);
   if (!local) log('warn', 'OBS is on another machine; using plain colors instead of the scene artwork');
+  const art = local ? writeSceneArt(theme, files) : null;
   const result = await setupTikTok(obs, {
     handle: account?.username || '',
-    assetsDir: local ? exportObsAssets() : null,
-    avatarUrl: local ? avatar.url : null,
+    assetsDir: art?.dir || null,
+    avatarUrl: local ? robotUrl(theme) : null,
+    // Dev aid: LSL_NO_CAPTURE=1 skips the webcam and game capture (for the
+    // OBS sandbox, which would otherwise open them on the real desktop).
+    capture: !process.env.LSL_NO_CAPTURE,
     log,
   });
+  settings.sceneTheme = theme;
+  saveSettings();
+  if (art) pruneSceneArt(art);
+  const name = SceneThemes.byId(theme).name;
   log('obs', result.created
-    ? `setup done: profile "${result.profile}", scene collection "${result.collection}"`
-    : `setup: repaired "${result.collection}" (${result.added} change(s))`);
-  if (settings.robotAvatar) await setRobotAvatar(obs, { enabled: true, url: avatar.url, log }).catch((e) => result.warnings.push(e.message));
+    ? `setup done: profile "${result.profile}", scene collection "${result.collection}", ${name} theme`
+    : `setup: ${name} theme on "${result.collection}" (${result.added} added, ${result.updated} updated)`);
+  if (settings.robotAvatar) await setRobotAvatar(obs, { enabled: true, url: robotUrl(theme), log }).catch((e) => result.warnings.push(e.message));
+  result.themeName = name;
+  send('setup', result);
   return result;
 }));
 
@@ -403,7 +472,7 @@ ipcMain.handle('obs:robot', wrap(async (enabled) => {
   saveSettings();
   if (!obs.connected) throw new Error('Connect to OBS first');
   if (!isThisMachine(settings.obsHost)) throw new Error('The robot avatar needs OBS on this machine');
-  return setRobotAvatar(obs, { enabled: !!enabled, url: avatar.url, log });
+  return setRobotAvatar(obs, { enabled: !!enabled, url: robotUrl(), log });
 }));
 
 let previewWin = null;
@@ -416,7 +485,7 @@ ipcMain.handle('avatar:preview', wrap(async () => {
     width: 420, height: 560, parent: mainWin, title: 'Robot preview', autoHideMenuBar: true,
     backgroundColor: '#0d0f14', webPreferences: { contextIsolation: true, sandbox: true },
   });
-  previewWin.loadURL(`${avatar.url}?preview=1`);
+  previewWin.loadURL(`${robotUrl()}&preview=1`);
 }));
 
 // ---- pinned window: any web page kept on top of everything -----------------
@@ -747,6 +816,21 @@ app.whenReady().then(async () => {
   createMainWindow();
   log('app', `started ${app.getVersion()} (Electron ${process.versions.electron})`);
   refreshAccount().catch((e) => log('warn', e.message));
+  // Dev aid: LSL_SCENES_TEST=<dir> opens the theme picker, saves a capture,
+  // and quits; LSL_SCENES_APPLY=<theme> first applies that theme to OBS.
+  if (process.env.LSL_SCENES_TEST) {
+    openScenes();
+    scenesWin.webContents.once('did-finish-load', () => setTimeout(async () => {
+      const wc = scenesWin.webContents;
+      const want = process.env.LSL_SCENES_APPLY;
+      if (want) {
+        await wc.executeJavaScript(`select(${JSON.stringify(want)}).then(() => apply()).then(() => document.getElementById('status').textContent)`)
+          .then((t) => console.log(`scenes test: ${t}`), (e) => console.log(`scenes test failed: ${e.message}`));
+      }
+      fs.writeFileSync(path.join(process.env.LSL_SCENES_TEST, 'picker.png'), (await wc.capturePage()).toPNG());
+      app.exit(0);
+    }, Number(process.env.LSL_SCENES_WAIT) || 4000));
+  }
   // Dev aid: LSL_PIN_TEST=<url> LSL_CAPTURE=<dir> opens the pinned window,
   // saves its shell and page captures, and quits.
   if (process.env.LSL_PIN_TEST && process.env.LSL_CAPTURE) {

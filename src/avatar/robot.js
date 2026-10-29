@@ -18,6 +18,20 @@ const frozenAt = Number(params.get('at') ?? 0.5);
 const forceCheer = params.has('cheer');
 if (params.has('preview')) document.body.classList.add('preview');
 
+// Scene theme colors: ?c1=rrggbb&c2=rrggbb replace the cyan and the pink.
+{
+  const swap = {};
+  for (const [from, key] of [['#25f4ee', 'c1'], ['#fe2c55', 'c2']]) {
+    if (/^[0-9a-f]{6}$/i.test(params.get(key) || '')) swap[from] = `#${params.get(key)}`;
+  }
+  for (const el of document.querySelectorAll('[fill], [stroke], [stop-color]')) {
+    for (const attr of ['fill', 'stroke', 'stop-color']) {
+      const to = swap[(el.getAttribute(attr) || '').toLowerCase()];
+      if (to) el.setAttribute(attr, to);
+    }
+  }
+}
+
 // ---- layout: portrait shows the torso, wide frames just the head ----------
 function layout() {
   const wide = innerWidth / innerHeight > 1.2;

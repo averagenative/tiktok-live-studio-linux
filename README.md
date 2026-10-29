@@ -83,15 +83,31 @@ The default host and port (`127.0.0.1`, `4455`) match OBS's defaults. The LAN ad
 
 ### Set up TikTok scenes
 
-After you connect, click **Set up TikTok scenes**. The app adds the following to OBS and leaves your other profiles and scene collections alone:
+Click **Set up TikTok scenes** to open the **Scene themes** window. It shows every scene in each theme, with your @handle, a stand-in for your game, and your webcam or the robot avatar, so you can compare themes before you change anything in OBS:
+
+| Theme | Look |
+|---|---|
+| **Neon** | Cyan and pink glow on a dark gradient |
+| **Synthwave** | A sunset sky, a striped neon sun, and a glowing grid floor |
+| **Arcade** | Pixel lettering, scanlines, and notched borders, with **PRESS START** and **GAME OVER** titles |
+| **Cozy** | Soft pastels, rounded letters, and white photo-style borders |
+| **Minimal** | Charcoal, thin white lines, and clean grotesque type |
+
+![The Scene themes window with the Synthwave theme selected: theme cards along the top and previews of all seven scenes, with the robot avatar in the theme's colors](docs/images/themes.png)
+
+Pick a theme and click **Apply to OBS**, with OBS connected. The app adds the following to OBS and leaves your other profiles and scene collections alone:
 
 - A **TikTok Vertical** profile: 1080x1920 at 30 fps, NVENC H.264 at 6000 kbps, and AAC audio at 160 kbps.
-- A **TikTok Vertical** scene collection with seven scenes: **Starting Soon**, **Camera**, **Screen + Camera**, **Screen + Robot**, **Screen**, **Be Right Back**, and **Ending**. They use a dark background, neon-edged rounded frames for the webcam and the game, and your @handle in Montserrat. **Screen + Robot** puts the game in a full-width window at the top and a large robot avatar below it.
+- A **TikTok Vertical** scene collection with seven scenes: **Starting Soon**, **Camera**, **Screen + Camera**, **Screen + Robot**, **Screen**, **Be Right Back**, and **Ending**, in the theme you picked. **Screen + Robot** puts the game in a full-width window at the top and a large robot avatar below it. The robot takes on the theme's colors.
 - `Mic` and `Desktop Audio` sources in every scene, with noise suppression, a compressor, and a limiter on the mic. `Mic` uses your system's default input, so pick your microphone in GNOME **Settings > Sound > Input**. If you set a USB mic as preferred there, OBS uses it whenever it's plugged in and falls back to the built-in mic otherwise.
 
 During the setup, the webcam turns on and GNOME asks which window to share for the `Game Window` source. Pick your game. The result appears under the button, including anything that needs your attention.
 
-Run **Set up TikTok scenes** again any time: it fills in whatever is missing and leaves anything you added or moved alone. If the game capture didn't get added, add it yourself and run the setup again to fit it into the frames:
+To switch themes, apply another one. The scenes keep their sources and layout, and only the artwork and the robot's colors change. Applying again also fills in whatever is missing and leaves anything you added or moved alone.
+
+The app draws each theme's background, frames, and text into images, with fonts it bundles, so OBS shows the theme the same way on any distribution without extra fonts. To change the words, add your own text source on top in OBS. If OBS runs on another machine, the app can't hand it images, so it sets up plain scenes with OBS text sources instead.
+
+If the game capture didn't get added, add it yourself and apply the theme again to fit it into the frames:
 
 1. In OBS, select **Screen + Camera**.
 2. Click **+** under **Sources** and choose **Window Capture (PipeWire)**.
@@ -191,8 +207,7 @@ For the request details, see [docs/PROTOCOL.md](docs/PROTOCOL.md).
 - `make hooks` sets `core.hooksPath` to `.githooks`, so `git push` runs `make check` first.
 - `make release` builds the AppImage, writes `SHA256SUMS`, and creates or updates a draft GitHub release for the version in `package.json`, with notes from that version's section of `CHANGELOG.md`. Publish the draft on GitHub when it's ready. `make release DRY_RUN=1` builds without touching GitHub.
 - `scripts/obs-sandbox.sh` starts a throwaway OBS on a virtual display (Xvfb) with its own config and an unauthenticated obs-websocket on port 4466, for testing the OBS automation without touching your real OBS.
-- `scripts/make-obs-assets.sh` regenerates the scene artwork in `src/obs-assets/` with ImageMagick.
-- Dev environment variables: `LSL_CAPTURE=<file>` saves a screenshot of the main window and quits (`LSL_THEME` picks the theme); `LSL_PIN_TEST=<url>` with `LSL_CAPTURE=<dir>` does the same for the pinned window; `LSL_AVATAR_PORT` moves the avatar server; `LSL_X11=1` runs through XWayland.
+- Dev environment variables: `LSL_CAPTURE=<file>` saves a screenshot of the main window and quits (`LSL_THEME` picks the theme); `LSL_PIN_TEST=<url>` with `LSL_CAPTURE=<dir>` does the same for the pinned window; `LSL_SCENES_TEST=<dir>` does the same for the **Scene themes** window, and with `LSL_SCENES_APPLY=<theme>` applies that theme to OBS first; `LSL_NO_CAPTURE=1` leaves out the webcam and game capture, for the OBS sandbox; `LSL_AVATAR_PORT` moves the avatar server; `LSL_X11=1` runs through XWayland. Pass `--user-data-dir=<dir>` to keep test runs away from your own settings and login.
 
 The code is plain CommonJS with no build step:
 
@@ -203,6 +218,7 @@ The code is plain CommonJS with no build step:
 | `src/session.js` | The LIVE lifecycle: create, heartbeat, finish |
 | `src/obs.js` | obs-websocket 5 client |
 | `src/obs-setup.js` | **Set up TikTok scenes** and the robot avatar sources |
+| `src/scenes/` | Scene themes: layout, theme data, the artwork renderer, the picker window, and the bundled fonts |
 | `src/avatar-server.js`, `src/avatar/` | Local server and page for the robot avatar |
 | `src/pin-isolate.js`, `src/pin/` | Pinned window panel-only view and its shell |
 | `src/util.js` | Pure helpers shared by the rest |
@@ -241,8 +257,7 @@ No. It's an unofficial project, not affiliated with or endorsed by TikTok or Byt
 ## Roadmap
 
 - More avatars to choose from, including animal themes.
-- Color and theme options for **Set up TikTok scenes**, such as background, frame colors, and fonts, instead of the single cyan and pink look. A theme picker shows a preview of each theme's scenes before you apply one to OBS.
 
 ## License
 
-[MIT](LICENSE). TikTok and LIVE Studio are trademarks of their owners and are used here only to describe what this app works with.
+[MIT](LICENSE). The bundled fonts in `src/scenes/fonts/` (Montserrat, Audiowide, Press Start 2P, Fredoka, and Space Grotesk) are under the SIL Open Font License; each one's license is next to it. TikTok and LIVE Studio are trademarks of their owners and are used here only to describe what this app works with.

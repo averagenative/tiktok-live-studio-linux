@@ -6,7 +6,7 @@ VERSION = $(shell node -p "require('./package.json').version")
 check: lint test
 
 lint:
-	@for f in src/*.js src/renderer/*.js src/pin/*.js src/avatar/*.js test/*.js; do node --check $$f || exit 1; done
+	@for f in src/*.js src/renderer/*.js src/pin/*.js src/avatar/*.js src/scenes/*.js test/*.js; do node --check $$f || exit 1; done
 
 test:
 	node --test test/*.test.js
