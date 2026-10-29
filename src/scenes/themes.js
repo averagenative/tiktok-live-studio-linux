@@ -2,8 +2,9 @@
 
 // Scene themes for "Set up TikTok scenes". Each one is data for
 // scenes/art.js: background, window frames, text styles, and the colors the
-// robot avatar takes on. Fonts are bundled (OFL, see scenes/fonts) and drawn
-// into the artwork, so OBS needs none of them installed.
+// avatar takes on. Fonts are bundled (OFL, see scenes/fonts) and drawn
+// into the artwork, so OBS needs none of them installed. avatar.c1 and c2
+// replace the avatar's cyan and pink accents.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SceneThemes = factory();
@@ -23,7 +24,7 @@
       id: 'neon',
       name: 'Neon',
       description: 'Cyan and pink glow on a dark gradient. The original look.',
-      robot: { c1: '#25f4ee', c2: '#fe2c55' },
+      avatar: { c1: '#25f4ee', c2: '#fe2c55' },
       bg: {
         gradient: ['#11131a', '#0a0b10'],
         glows: [
@@ -43,7 +44,7 @@
       id: 'synthwave',
       name: 'Synthwave',
       description: 'A sunset sky, a striped neon sun, and a glowing grid floor.',
-      robot: { c1: '#ff2bd6', c2: '#ffb347' },
+      avatar: { c1: '#ff2bd6', c2: '#ffb347' },
       bg: {
         gradient: ['#0d0221', '#2b0a4a', '#6a1361', '#d8446c'],
         glows: [{ color: '#ff2bd6', x: 540, y: 1500, r: 900, alpha: 0.3 }],
@@ -66,7 +67,7 @@
       id: 'arcade',
       name: 'Arcade',
       description: 'Pixel lettering, scanlines, and chunky notched borders.',
-      robot: { c1: '#39ff14', c2: '#ffe600' },
+      avatar: { c1: '#39ff14', c2: '#ffe600' },
       bg: {
         gradient: ['#0b0d2a', '#050614'],
         glows: [
@@ -93,7 +94,7 @@
       id: 'cozy',
       name: 'Cozy',
       description: 'Soft pastels, rounded letters, and white photo-style borders.',
-      robot: { c1: '#ff7aa2', c2: '#7ec8e3' },
+      avatar: { c1: '#ff7aa2', c2: '#7ec8e3' },
       bg: {
         gradient: ['#fff1e6', '#ffe1ec', '#e8e4ff'],
         glows: [
@@ -120,7 +121,7 @@
       id: 'minimal',
       name: 'Minimal',
       description: 'Charcoal, thin white lines, and clean grotesque type.',
-      robot: { c1: '#ffffff', c2: '#ff5a5f' },
+      avatar: { c1: '#ffffff', c2: '#ff5a5f' },
       bg: {
         gradient: ['#1a1a1d', '#0c0c0e'],
         glows: [{ color: '#ffffff', x: 540, y: 0, r: 1200, alpha: 0.05 }],

@@ -39,6 +39,10 @@ function fakeObs({ profiles = ['Untitled'], collections = ['Untitled'], special 
     }),
     CreateInput: ({ sceneName, inputName, inputKind }) => { st.inputs.set(inputName, inputKind); return addItem(sceneName, inputName); },
     CreateSceneItem: ({ sceneName, sourceName }) => addItem(sceneName, sourceName),
+    SetSceneName: ({ sceneName, newSceneName }) => {
+      st.scenes.set(newSceneName, st.scenes.get(sceneName));
+      st.scenes.delete(sceneName);
+    },
     SetInputName: ({ inputName, newInputName }) => {
       st.inputs.set(newInputName, st.inputs.get(inputName));
       st.inputs.delete(inputName);
@@ -170,25 +174,25 @@ test('a screen capture that never answers is a warning, not a failure', async ()
   assert.ok(!obs.st.scenes.has('Scene'), 'the rest of the setup still finished');
 });
 
-test('with the avatar URL, Screen + Robot puts the game on top and the full robot below', async () => {
+test('with the avatar URL, Screen + Avatar puts the game on top and the full avatar below', async () => {
   const obs = fakeObs();
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar' });
-  assert.ok(obs.st.scenes.has('Screen + Robot'));
-  assert.deepEqual(order(obs, 'Screen + Robot').slice(0, 4), ['Background', 'Game Window', 'Frame: Screen + Robot', 'Robot (full)']);
-  const robot = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Robot (full)')[1];
+  assert.ok(obs.st.scenes.has('Screen + Avatar'));
+  assert.deepEqual(order(obs, 'Screen + Avatar').slice(0, 4), ['Background', 'Game Window', 'Frame: Screen + Avatar', 'Avatar (full)']);
+  const robot = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Avatar (full)')[1];
   assert.equal(robot.inputKind, 'browser_source');
   assert.equal(robot.inputSettings.url, 'http://127.0.0.1:47812/avatar');
   assert.equal(robot.inputSettings.width, 1080);
   assert.equal(robot.inputSettings.height, 1130);
-  const t = obs.calls.find((c) => c[0] === 'SetSceneItemTransform' && c[1].sceneName === 'Screen + Robot'
+  const t = obs.calls.find((c) => c[0] === 'SetSceneItemTransform' && c[1].sceneName === 'Screen + Avatar'
     && c[1].sceneItemTransform.positionY === 790);
-  assert.ok(t, 'robot sits under the game window');
+  assert.ok(t, 'avatar sits under the game window');
 });
 
-test('without the avatar URL there is no robot scene', async () => {
+test('without the avatar URL there is no avatar scene', async () => {
   const obs = fakeObs();
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a' });
-  assert.ok(!obs.st.scenes.has('Screen + Robot'));
+  assert.ok(!obs.st.scenes.has('Screen + Avatar'));
 });
 
 test('setup refuses to run while OBS is streaming', async () => {
@@ -222,7 +226,7 @@ test('no source shares a name with a scene (OBS refuses duplicates across both)'
 
 const settingsFor = (obs, inputName) => obs.calls.filter((c) => c[0] === 'SetInputSettings' && c[1].inputName === inputName).map((c) => c[1].inputSettings);
 
-test('applying another theme repoints the artwork and robot, and drops the old text sources', async () => {
+test('applying another theme repoints the artwork and avatar, and drops the old text sources', async () => {
   const obs = fakeObs();
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/neon', avatarUrl: 'http://127.0.0.1:47812/avatar?c1=25f4ee' });
   const created = obs.calls.find((c) => c[0] === 'CreateInput' && c[1].inputName === 'Frame: Starting Soon')[1];
@@ -238,7 +242,7 @@ test('applying another theme repoints the artwork and robot, and drops the old t
   assert.ok(res.updated >= 8, 'background and every frame repointed');
   assert.equal(settingsFor(obs, 'Background').at(-1).file, '/tmp/arcade/bg.png');
   assert.equal(settingsFor(obs, 'Frame: Ending').at(-1).file, '/tmp/arcade/frame-ending.png');
-  assert.equal(settingsFor(obs, 'Robot (full)').at(-1).url, 'http://127.0.0.1:47812/avatar?c1=39ff14');
+  assert.equal(settingsFor(obs, 'Avatar (full)').at(-1).url, 'http://127.0.0.1:47812/avatar?c1=39ff14');
   assert.ok(!obs.st.inputs.has('Title: Starting') && !obs.st.inputs.has('Handle'), 'old text sources removed');
   assert.ok(!order(obs, 'Starting Soon').includes('Title: Starting'));
 });
@@ -262,4 +266,17 @@ test('a re-run counts no changes for full-canvas layers sitting at the default s
   await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', capture: false });
   const again = await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', capture: false });
   assert.equal(again.added, 0);
+});
+
+test('a 0.1.0 robot setup is renamed to Avatar in place, not rebuilt', async () => {
+  const obs = fakeObs({ profiles: ['Untitled', 'TikTok Vertical'], collections: ['Untitled', 'TikTok Vertical'] });
+  obs.st.scenes.set('Screen + Robot', [{ sourceName: 'Robot (full)', sceneItemId: 600 }, { sourceName: 'Frame: Screen + Robot', sceneItemId: 601 }]);
+  obs.st.inputs.set('Robot (full)', 'browser_source');
+  obs.st.inputs.set('Frame: Screen + Robot', 'image_source');
+  await setupTikTok(obs, { handle: 'x', assetsDir: '/tmp/a', avatarUrl: 'http://127.0.0.1:47812/avatar?avatar=cat' });
+  assert.ok(!obs.st.scenes.has('Screen + Robot') && obs.st.scenes.has('Screen + Avatar'));
+  assert.ok(!obs.st.inputs.has('Robot (full)') && obs.st.inputs.get('Avatar (full)') === 'browser_source');
+  assert.ok(!obs.calls.some((c) => c[0] === 'CreateInput' && c[1].inputName === 'Avatar (full)'), 'renamed, not recreated');
+  assert.equal(settingsFor(obs, 'Avatar (full)').at(-1).url, 'http://127.0.0.1:47812/avatar?avatar=cat');
+  assert.equal(settingsFor(obs, 'Frame: Screen + Avatar').at(-1).file, '/tmp/a/frame-screen-avatar.png');
 });

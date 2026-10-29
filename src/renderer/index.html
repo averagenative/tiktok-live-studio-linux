@@ -82,10 +82,16 @@
       <label class="check"><input type="checkbox" id="use-profile"> Use the TikTok Vertical OBS profile while LIVE, then switch back</label>
       <label class="check"><input type="checkbox" id="vertical"> Vertical (portrait) LIVE</label>
       <div class="row robot-row">
-        <label class="check"><input type="checkbox" id="robot"> Robot avatar instead of webcam</label>
-        <button id="robot-preview">Preview robot</button>
+        <label class="check"><input type="checkbox" id="robot"> Avatar instead of webcam</label>
+        <select id="avatar-kind" aria-label="Avatar">
+          <option value="robot">Robot</option>
+          <option value="cat">Cat</option>
+          <option value="fox">Fox</option>
+          <option value="panda">Panda</option>
+        </select>
+        <button id="robot-preview">Preview</button>
       </div>
-      <p class="muted small">The robot replaces your webcam in the Camera scenes and talks when your mic does. Your webcam isn't shown while it's on.</p>
+      <p class="muted small">The avatar replaces your webcam in the Camera scenes and talks when your mic does. Your webcam isn't shown while it's on.</p>
       <p class="muted small">In OBS: Tools, then WebSocket Server Settings. Enable the server and copy the password here.</p>
     </section>
 

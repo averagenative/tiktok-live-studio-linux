@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('ls', {
   obsDisconnect: () => call('obs:disconnect'),
   openScenes: () => call('scenes:open'),
   setRobot: (enabled) => call('obs:robot', enabled),
+  setAvatarKind: (kind) => call('avatar:kind', kind),
   previewRobot: () => call('avatar:preview'),
   pinOpen: (url) => call('pin:open', url),
   pinClose: () => call('pin:close'),

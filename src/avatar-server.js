@@ -1,6 +1,6 @@
 'use strict';
 
-// Serves the robot avatar page to an OBS Browser source on 127.0.0.1 and
+// Serves the avatar page to an OBS Browser source on 127.0.0.1 and
 // streams the mic level to it as Server-Sent Events.
 
 const http = require('node:http');
@@ -9,7 +9,22 @@ const path = require('node:path');
 
 const DIR = path.join(__dirname, 'avatar');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
-const FILES = { '/avatar': 'index.html', '/avatar/': 'index.html', '/robot.js': 'robot.js', '/avatar/robot.js': 'robot.js' };
+
+// The page at /avatar and the scripts beside it, listed once at startup. The
+// page's relative links resolve against / (from /avatar) or /avatar/ (from
+// /avatar/), so each file answers at both.
+function fileMap() {
+  const map = { '/avatar': 'index.html', '/avatar/': 'index.html' };
+  for (const sub of ['', 'avatars']) {
+    for (const f of fs.readdirSync(path.join(DIR, sub))) {
+      if (!f.endsWith('.js')) continue;
+      const rel = sub ? `${sub}/${f}` : f;
+      map[`/${rel}`] = rel;
+      map[`/avatar/${rel}`] = rel;
+    }
+  }
+  return map;
+}
 
 // obs-websocket InputVolumeMeters gives per-channel [magnitude, peak, inputPeak]
 // as linear multipliers. Map the loudest channel's magnitude from -50..-10 dBFS
@@ -31,6 +46,7 @@ function pickMic(inputs, preferred) {
 }
 
 function startAvatarServer({ port = 47812, log = () => {} } = {}) {
+  const FILES = fileMap();
   const clients = new Set();
   let last = 0;
   let lastSent = 0;
@@ -64,7 +80,7 @@ function startAvatarServer({ port = 47812, log = () => {} } = {}) {
       resolve(false);
     });
     server.listen(port, '127.0.0.1', () => {
-      log('app', `robot avatar served at http://127.0.0.1:${port}/avatar`);
+      log('app', `avatar served at http://127.0.0.1:${port}/avatar`);
       resolve(true);
     });
   });

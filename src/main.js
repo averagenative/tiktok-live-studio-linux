@@ -8,7 +8,7 @@ const { app, BrowserWindow, WebContentsView, ipcMain, session, clipboard, shell,
 const { TikTokApi } = require('./tiktok');
 const { ObsClient } = require('./obs');
 const { LiveSession } = require('./session');
-const { setupTikTok, setRobotAvatar, PROFILE: OBS_PROFILE } = require('./obs-setup');
+const { setupTikTok, setAvatar, setAvatarUrl, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const SceneLayout = require('./scenes/layout');
 const SceneThemes = require('./scenes/themes');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
@@ -60,7 +60,9 @@ const DEFAULTS = {
   obsPasswordEnc: '',
   driveObs: true,
   useTikTokProfile: true,
+  // Avatar instead of webcam (the key predates the animal avatars).
   robotAvatar: false,
+  avatar: 'robot',
   sceneTheme: SceneThemes.DEFAULT_THEME,
   pinUrl: '',
   pinClickThrough: false,
@@ -152,7 +154,7 @@ obs.on('disconnected', (code) => {
   send('obs', obsState());
 });
 
-// The robot avatar's mouth follows the mic level from OBS's own meters.
+// The avatar's mouth follows the mic level from OBS's own meters.
 let avatar = null;
 obs.on('event', (type, data) => {
   if (type !== 'InputVolumeMeters' || !avatar) return;
@@ -375,10 +377,14 @@ function isThisMachine(host) {
   return Object.values(os.networkInterfaces()).flat().some((a) => a && a.address.toLowerCase() === h);
 }
 
-// The robot page in a scene theme's colors.
-function robotUrl(themeId = settings.sceneTheme) {
-  const { c1, c2 } = SceneThemes.byId(themeId).robot;
-  return `${avatar.url}?c1=${c1.slice(1)}&c2=${c2.slice(1)}`;
+// One file per avatar in src/avatar/avatars.
+const AVATARS = ['robot', 'cat', 'fox', 'panda'];
+const avatarKind = () => (AVATARS.includes(settings.avatar) ? settings.avatar : 'robot');
+
+// The avatar page: which avatar, in a scene theme's colors.
+function avatarUrl(themeId = settings.sceneTheme) {
+  const { c1, c2 } = SceneThemes.byId(themeId).avatar;
+  return `${avatar.url}?avatar=${avatarKind()}&c1=${c1.slice(1)}&c2=${c2.slice(1)}`;
 }
 
 // ---- scene themes: the picker draws the artwork, OBS loads it from here -----
@@ -433,7 +439,8 @@ ipcMain.handle('scenes:state', wrap(async () => ({
   theme: SceneThemes.byId(settings.sceneTheme).id,
   handle: account?.username ? `@${account.username}` : '',
   privacy: !!settings.privacy,
-  robot: !!settings.robotAvatar,
+  avatarOn: !!settings.robotAvatar,
+  avatarKind: avatarKind(),
   avatarUrl: avatar.url,
   local: isThisMachine(settings.obsHost),
   obs: obsState(),
@@ -448,7 +455,7 @@ ipcMain.handle('scenes:apply', wrap(async ({ theme, files } = {}) => {
   const result = await setupTikTok(obs, {
     handle: account?.username || '',
     assetsDir: art?.dir || null,
-    avatarUrl: local ? robotUrl(theme) : null,
+    avatarUrl: local ? avatarUrl(theme) : null,
     // Dev aid: LSL_NO_CAPTURE=1 skips the webcam and game capture (for the
     // OBS sandbox, which would otherwise open them on the real desktop).
     capture: !process.env.LSL_NO_CAPTURE,
@@ -461,7 +468,7 @@ ipcMain.handle('scenes:apply', wrap(async ({ theme, files } = {}) => {
   log('obs', result.created
     ? `setup done: profile "${result.profile}", scene collection "${result.collection}", ${name} theme`
     : `setup: ${name} theme on "${result.collection}" (${result.added} added, ${result.updated} updated)`);
-  if (settings.robotAvatar) await setRobotAvatar(obs, { enabled: true, url: robotUrl(theme), log }).catch((e) => result.warnings.push(e.message));
+  if (settings.robotAvatar) await setAvatar(obs, { enabled: true, url: avatarUrl(theme), log }).catch((e) => result.warnings.push(e.message));
   result.themeName = name;
   send('setup', result);
   return result;
@@ -471,8 +478,21 @@ ipcMain.handle('obs:robot', wrap(async (enabled) => {
   settings.robotAvatar = !!enabled;
   saveSettings();
   if (!obs.connected) throw new Error('Connect to OBS first');
-  if (!isThisMachine(settings.obsHost)) throw new Error('The robot avatar needs OBS on this machine');
-  return setRobotAvatar(obs, { enabled: !!enabled, url: robotUrl(), log });
+  if (!isThisMachine(settings.obsHost)) throw new Error('The avatar needs OBS on this machine');
+  return setAvatar(obs, { enabled: !!enabled, url: avatarUrl(), log });
+}));
+
+// Switch avatars: the preview and any avatar sources already in OBS follow.
+ipcMain.handle('avatar:kind', wrap(async (kind) => {
+  if (!AVATARS.includes(kind)) throw new Error(`Unknown avatar "${kind}"`);
+  settings.avatar = kind;
+  saveSettings();
+  if (previewWin && !previewWin.isDestroyed()) previewWin.loadURL(`${avatarUrl()}&preview=1`);
+  if (obs.connected && isThisMachine(settings.obsHost)) {
+    const updated = await setAvatarUrl(obs, avatarUrl(), { log });
+    if (updated.length) log('obs', `avatar: switched ${updated.join(', ')} to the ${kind}`);
+  }
+  return publicSettings();
 }));
 
 let previewWin = null;
@@ -482,10 +502,10 @@ ipcMain.handle('avatar:preview', wrap(async () => {
     return;
   }
   previewWin = new BrowserWindow({
-    width: 420, height: 560, parent: mainWin, title: 'Robot preview', autoHideMenuBar: true,
+    width: 420, height: 560, parent: mainWin, title: 'Avatar preview', autoHideMenuBar: true,
     backgroundColor: '#0d0f14', webPreferences: { contextIsolation: true, sandbox: true },
   });
-  previewWin.loadURL(`${robotUrl()}&preview=1`);
+  previewWin.loadURL(`${avatarUrl()}&preview=1`);
 }));
 
 // ---- pinned window: any web page kept on top of everything -----------------

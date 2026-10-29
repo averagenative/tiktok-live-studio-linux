@@ -5,7 +5,7 @@
 
 const $ = (id) => document.getElementById(id);
 const api = window.scenes;
-const { W, H, SCENES, ROBOT_FULL, BG_FILE, frameFile } = SceneLayout;
+const { W, H, SCENES, AVATAR_FULL, BG_FILE, frameFile } = SceneLayout;
 const { THEMES, byId } = SceneThemes;
 
 let state = null;
@@ -13,8 +13,11 @@ let current = null;
 let busy = false;
 
 const pct = (v, total) => `${(v / total) * 100}%`;
-// The robot lays itself out by its frame's shape (portrait or wide).
-const robotSrc = (theme) => `${state.avatarUrl}?demo=1&c1=${theme.robot.c1.slice(1)}&c2=${theme.robot.c2.slice(1)}`;
+// The avatar lays itself out by its frame's shape (portrait or wide).
+const avatarSrc = (theme) => {
+  const { c1, c2 } = theme.avatar;
+  return `${state.avatarUrl}?avatar=${state.avatarKind}&demo=1&c1=${c1.slice(1)}&c2=${c2.slice(1)}`;
+};
 
 // A canvas drawn in scene space at its on-screen size.
 function sceneCanvas(cssWidth, draw) {
@@ -68,10 +71,10 @@ async function renderThemes() {
 
 function standIn(kind, box, theme) {
   let el;
-  if (kind === 'robot') {
+  if (kind === 'avatar') {
     el = document.createElement('iframe');
-    el.src = robotSrc(theme);
-    el.title = 'Robot avatar';
+    el.src = avatarSrc(theme);
+    el.title = 'Avatar';
     el.tabIndex = -1;
     // Full size in scene pixels; renderScenes scales it down to the stage.
     el.style.width = `${box.w}px`;
@@ -85,7 +88,7 @@ function standIn(kind, box, theme) {
   }
   el.style.left = pct(box.x, W);
   el.style.top = pct(box.y, H);
-  if (kind !== 'robot') {
+  if (kind !== 'avatar') {
     el.style.width = pct(box.w, W);
     el.style.height = pct(box.h, H);
   }
@@ -95,7 +98,7 @@ function standIn(kind, box, theme) {
 function renderScenes(theme) {
   const box = $('scenes');
   box.replaceChildren();
-  const scenes = SCENES.filter((s) => !s.robot || state.local);
+  const scenes = SCENES.filter((s) => !s.avatar || state.local);
   for (const scene of scenes) {
     const fig = document.createElement('figure');
     fig.className = 'scene';
@@ -109,23 +112,23 @@ function renderScenes(theme) {
 
     const width = stage.clientWidth || 150;
     stage.append(sceneCanvas(width, (ctx) => SceneArt.drawBackground(ctx, theme)));
-    const robots = [];
+    const avatars = [];
     for (const h of scene.holes) {
       // Sources overhang their window by 4 px, as in OBS.
       const slot = { x: h.x - 4, y: h.y - 4, w: h.w + 8, h: h.h + 8 };
-      const kind = h.shows === 'game' ? 'game' : state.robot ? 'robot' : 'cam';
+      const kind = h.shows === 'game' ? 'game' : state.avatarOn ? 'avatar' : 'cam';
       const el = standIn(kind, slot, theme);
       stage.append(el);
-      if (kind === 'robot') robots.push(el);
+      if (kind === 'avatar') avatars.push(el);
     }
     stage.append(sceneCanvas(width, (ctx) => SceneArt.drawFrame(ctx, theme, scene, { handle: previewHandle() })));
-    if (scene.robot) {
-      const el = standIn('robot', ROBOT_FULL, theme);
+    if (scene.avatar) {
+      const el = standIn('avatar', AVATAR_FULL, theme);
       stage.append(el);
-      robots.push(el);
+      avatars.push(el);
     }
-    // Robot pages render at full size and scale down to the stage.
-    for (const el of robots) el.style.transform = `scale(${width / W})`;
+    // Avatar pages render at full size and scale down to the stage.
+    for (const el of avatars) el.style.transform = `scale(${width / W})`;
   }
 }
 

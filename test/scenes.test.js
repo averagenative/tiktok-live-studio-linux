@@ -24,7 +24,7 @@ test('themes are complete and use only bundled fonts', () => {
   assert.ok(T.THEMES.some((t) => t.id === T.DEFAULT_THEME));
   for (const t of T.THEMES) {
     assert.ok(t.name && t.description, t.id);
-    assert.ok(hex.test(t.robot.c1) && hex.test(t.robot.c2), `${t.id} robot colors`);
+    assert.ok(hex.test(t.avatar.c1) && hex.test(t.avatar.c2), `${t.id} avatar colors`);
     assert.ok(t.bg.gradient.length >= 2, `${t.id} background`);
     assert.ok(['glow', 'pixel', 'soft', 'line'].includes(t.frame.style), `${t.id} frame style`);
     for (const role of ['title', 'subtitle', 'handle']) {

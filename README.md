@@ -19,13 +19,13 @@ Version 0.1.0 has gone LIVE end to end with a real account: log in, create the r
 - Drives OBS through its built-in WebSocket server: switches to the TikTok profile, sets the server and key, starts the stream, and puts your previous OBS settings back afterwards.
 - Sends the heartbeat TikTok expects every 5 seconds while you're LIVE, and ends the room cleanly when you click **End LIVE**, stop streaming in OBS, or quit the app.
 - Builds a styled vertical TikTok profile and scene collection in OBS with one click.
-- Can replace your webcam with a voice-reactive robot avatar.
+- Can replace your webcam with a voice-reactive avatar: a robot, a cat, a fox, or a panda.
 - Opens a pinned window that keeps a web page, such as your LIVE page's viewers and comments panel, on top of your game.
 - Hides your account, OBS address, and stream details with one click, for when you share your whole screen.
 
 OBS does all of the capture, scenes, and encoding. This app handles the TikTok side.
 
-![Vertical TikTok scenes the app builds in OBS: Starting Soon, Screen + Robot with a game window and the robot avatar, Be Right Back, and Ending](docs/images/scenes.png)
+![Vertical TikTok scenes the app builds in OBS: Starting Soon, Screen + Avatar with a game window and the robot avatar, Be Right Back, and Ending](docs/images/scenes.png)
 
 ![The robot avatar's poses: resting, cheering with both arms up, shrugging, brushing off a shoulder, turning its head, and tilting its head](docs/images/robot-poses.png)
 
@@ -83,7 +83,7 @@ The default host and port (`127.0.0.1`, `4455`) match OBS's defaults. The LAN ad
 
 ### Set up TikTok scenes
 
-Click **Set up TikTok scenes** to open the **Scene themes** window. It shows every scene in each theme, with your @handle, a stand-in for your game, and your webcam or the robot avatar, so you can compare themes before you change anything in OBS:
+Click **Set up TikTok scenes** to open the **Scene themes** window. It shows every scene in each theme, with your @handle, a stand-in for your game, and your webcam or your avatar, so you can compare themes before you change anything in OBS:
 
 | Theme | Look |
 |---|---|
@@ -98,12 +98,12 @@ Click **Set up TikTok scenes** to open the **Scene themes** window. It shows eve
 Pick a theme and click **Apply to OBS**, with OBS connected. The app adds the following to OBS and leaves your other profiles and scene collections alone:
 
 - A **TikTok Vertical** profile: 1080x1920 at 30 fps, NVENC H.264 at 6000 kbps, and AAC audio at 160 kbps.
-- A **TikTok Vertical** scene collection with seven scenes: **Starting Soon**, **Camera**, **Screen + Camera**, **Screen + Robot**, **Screen**, **Be Right Back**, and **Ending**, in the theme you picked. **Screen + Robot** puts the game in a full-width window at the top and a large robot avatar below it. The robot takes on the theme's colors.
+- A **TikTok Vertical** scene collection with seven scenes: **Starting Soon**, **Camera**, **Screen + Camera**, **Screen + Avatar**, **Screen**, **Be Right Back**, and **Ending**, in the theme you picked. **Screen + Avatar** puts the game in a full-width window at the top and a large avatar below it. The avatar takes on the theme's colors.
 - `Mic` and `Desktop Audio` sources in every scene, with noise suppression, a compressor, and a limiter on the mic. `Mic` uses your system's default input, so pick your microphone in GNOME **Settings > Sound > Input**. If you set a USB mic as preferred there, OBS uses it whenever it's plugged in and falls back to the built-in mic otherwise.
 
 During the setup, the webcam turns on and GNOME asks which window to share for the `Game Window` source. Pick your game. The result appears under the button, including anything that needs your attention.
 
-To switch themes, apply another one. The scenes keep their sources and layout, and only the artwork and the robot's colors change. Applying again also fills in whatever is missing and leaves anything you added or moved alone.
+To switch themes, apply another one. The scenes keep their sources and layout, and only the artwork and the avatar's colors change. Applying again also fills in whatever is missing and leaves anything you added or moved alone.
 
 The app draws each theme's background, frames, and text into images, with fonts it bundles, so OBS shows the theme the same way on any distribution without extra fonts. To change the words, add your own text source on top in OBS. If OBS runs on another machine, the app can't hand it images, so it sets up plain scenes with OBS text sources instead.
 
@@ -127,14 +127,27 @@ If you'd rather not let the app control OBS, clear **Drive OBS automatically**. 
 5. The badge changes from **PREPARING** to **LIVE** after OBS reports that the stream is running. With **Use the TikTok Vertical OBS profile while LIVE** selected, OBS switches to that profile for the LIVE.
 6. To finish, click **End LIVE**. OBS stops streaming and switches back to your previous profile. Stopping the stream in OBS or quitting the app also ends the LIVE.
 
-## Robot avatar
+## Avatars
 
-To stay off camera, select **Robot avatar instead of webcam** in the **OBS** panel. An animated robot replaces your webcam in the **Camera** and **Screen + Camera** scenes, and the **Screen + Robot** scene always shows it. It blinks, bobs, and lights up its equalizer mouth when your mic picks up your voice. When you get loud, it throws both arms up in a cheer. It also moves on its own: head tilts, turns, and nods while you talk, and shrugs or brushes off a shoulder in quieter moments. Your webcam is hidden from the stream while the robot is on. Clear the option to switch back.
+To stay off camera, select **Avatar instead of webcam** in the **OBS** panel and pick an avatar from the menu next to it:
 
-- The robot is an OBS **Browser** source that loads `http://127.0.0.1:47812/avatar` from this app, so keep the app running while you're LIVE.
+| Avatar | Look |
+|---|---|
+| **Robot** | A visor face with LED eyes, an equalizer mouth, and a glowing antenna and core |
+| **Cat** | A ginger tabby with whiskers and a pink nose |
+| **Fox** | A red fox with a white face and dark ear tips |
+| **Panda** | Black eye patches, round ears, and black arms |
+
+![The four avatars: the robot talking, the cat cheering with both paws up, the fox tilting its head, and the panda shrugging](docs/images/avatars.jpg)
+
+The avatar replaces your webcam in the **Camera** and **Screen + Camera** scenes, and the **Screen + Avatar** scene always shows it. It blinks, bobs, and moves its mouth when your mic picks up your voice. When you get loud, it throws both arms up in a cheer. It also moves on its own: head tilts, turns, and nods while you talk, and shrugs or brushes off a shoulder in quieter moments. The animals wear streaming headphones and a scarf, and every avatar takes on the colors of your scene theme. Your webcam is hidden from the stream while the avatar is on. Clear the option to switch back.
+
+- Switching avatars in the menu updates the avatar in OBS right away, with no need to run the setup again.
+- The avatar is an OBS **Browser** source that loads `http://127.0.0.1:47812/avatar` from this app, so keep the app running while you're LIVE.
 - The mouth follows the level of your mic input in OBS (`Mic`, or `Mic/Aux` in other scene collections), after the mic filters.
-- Click **Preview robot** to see it react to your voice. The preview needs the OBS connection, because the level comes from OBS.
+- Click **Preview** to see it react to your voice. The preview needs the OBS connection, because the level comes from OBS.
 - It works only when OBS runs on the same machine as the app.
+- Setups from version 0.1.0 named these sources after the robot. Applying a theme or turning the avatar on renames them to **Avatar** in place, including the **Screen + Robot** scene, which becomes **Screen + Avatar**.
 
 ## Pinned window
 
@@ -217,9 +230,9 @@ The code is plain CommonJS with no build step:
 | `src/tiktok.js` | Webcast API client and regional host detection |
 | `src/session.js` | The LIVE lifecycle: create, heartbeat, finish |
 | `src/obs.js` | obs-websocket 5 client |
-| `src/obs-setup.js` | **Set up TikTok scenes** and the robot avatar sources |
+| `src/obs-setup.js` | **Set up TikTok scenes** and the avatar sources |
 | `src/scenes/` | Scene themes: layout, theme data, the artwork renderer, the picker window, and the bundled fonts |
-| `src/avatar-server.js`, `src/avatar/` | Local server and page for the robot avatar |
+| `src/avatar-server.js`, `src/avatar/` | Local server and page for the avatars: `engine.js` animates them, and `avatars/` has one file per avatar |
 | `src/pin-isolate.js`, `src/pin/` | Pinned window panel-only view and its shell |
 | `src/util.js` | Pure helpers shared by the rest |
 | `src/renderer/` | The app's UI |
@@ -244,19 +257,15 @@ It's developed and tested on Fedora 44 with GNOME on Wayland. The AppImage shoul
 
 ### Can I use it without OBS?
 
-Clear **Drive OBS automatically**, and the app shows the server and stream key for each LIVE, so any streaming software that supports custom RTMP can use them. The scene setup and the robot avatar need OBS.
+Clear **Drive OBS automatically**, and the app shows the server and stream key for each LIVE, so any streaming software that supports custom RTMP can use them. The scene setup and the avatars need OBS.
 
 ### Can I go LIVE without showing my face?
 
-Yes. **Robot avatar instead of webcam** replaces your webcam with an animated robot that talks when you do. See [Robot avatar](#robot-avatar).
+Yes. **Avatar instead of webcam** replaces your webcam with an animated robot, cat, fox, or panda that talks when you do. See [Avatars](#avatars).
 
 ### Is this made by TikTok?
 
 No. It's an unofficial project, not affiliated with or endorsed by TikTok or ByteDance. See the notice at the top of this page.
-
-## Roadmap
-
-- More avatars to choose from, including animal themes.
 
 ## License
 

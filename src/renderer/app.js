@@ -142,6 +142,7 @@ function renderSettings() {
   $('drive-obs').checked = !!s.driveObs;
   $('use-profile').checked = !!s.useTikTokProfile;
   $('robot').checked = !!s.robotAvatar;
+  $('avatar-kind').value = s.avatar || 'robot';
   $('pin-click').checked = !!s.pinClickThrough;
   $('pin-panel').checked = s.pinPanelOnly !== false;
   $('pin-alpha').value = Math.round((s.pinBgAlpha ?? 0.6) * 100);
@@ -274,6 +275,10 @@ function wire() {
       e.target.checked = !e.target.checked;
       throw err;
     }
+  }));
+  $('avatar-kind').addEventListener('change', (e) => act(null, async () => {
+    view.settings = await api.setAvatarKind(e.target.value);
+    renderSettings();
   }));
   $('robot-preview').addEventListener('click', (e) => act(e.target, () => api.previewRobot()));
   $('pin-open').addEventListener('click', (e) => act(e.target, async () => renderPin(await api.pinOpen($('pin-url').value))));

@@ -1,15 +1,21 @@
 'use strict';
 
-// Voice-reactive robot. The app streams the mic level (0..1) over
+// Voice-reactive avatar. The app streams the mic level (0..1) over
 // Server-Sent Events from /events. On top of the talking mouth, a small
 // gesture engine blends timed moves (tilts, turns, nods, shrugs, brushing
 // a shoulder) with a cheer that raises both arms while the voice is loud.
 //
-// Test switches: ?demo=1 fakes speech, ?level=0.7 holds a level,
-// ?gesture=shrug&at=0.5 freezes a gesture, ?cheer=1 holds the cheer.
+// Avatars (avatars/*.js) share one skeleton: a head that pivots at
+// (480, 470), and arms with shoulders at (150, 880) and (810, 880) and
+// elbows 205 below. The engine moves those parts; each avatar draws its own
+// eyes, mouth, and glow from the same pose.
+//
+// URL options: ?avatar=robot|cat|fox|panda picks the avatar, and
+// ?c1=rrggbb&c2=rrggbb replace its accent colors (#25f4ee and #fe2c55 in
+// the artwork). Test switches: ?demo=1 fakes speech, ?level=0.7 holds a
+// level, ?gesture=shrug&at=0.5 freezes a gesture, ?cheer=1 holds the cheer.
 
 const NS = 'http://www.w3.org/2000/svg';
-const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const demo = params.has('demo');
 const fixedLevel = params.has('level') ? Number(params.get('level')) : null;
@@ -18,13 +24,28 @@ const frozenAt = Number(params.get('at') ?? 0.5);
 const forceCheer = params.has('cheer');
 if (params.has('preview')) document.body.classList.add('preview');
 
-// Scene theme colors: ?c1=rrggbb&c2=rrggbb replace the cyan and the pink.
+const AVATAR = window.AVATARS[params.get('avatar')] || window.AVATARS.robot;
+document.title = `${AVATAR.name} avatar`;
+
+// ---- the artwork ---------------------------------------------------------------
+const svg = document.createElementNS(NS, 'svg');
+svg.id = 'stage';
+svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+svg.innerHTML = AVATAR.svg;
+document.body.prepend(svg);
+const $ = (id) => document.getElementById(id);
+const setT = (id, v) => {
+  const el = $(id);
+  if (el) el.setAttribute('transform', v);
+};
+
+// Theme colors.
 {
   const swap = {};
   for (const [from, key] of [['#25f4ee', 'c1'], ['#fe2c55', 'c2']]) {
     if (/^[0-9a-f]{6}$/i.test(params.get(key) || '')) swap[from] = `#${params.get(key)}`;
   }
-  for (const el of document.querySelectorAll('[fill], [stroke], [stop-color]')) {
+  for (const el of svg.querySelectorAll('[fill], [stroke], [stop-color]')) {
     for (const attr of ['fill', 'stroke', 'stop-color']) {
       const to = swap[(el.getAttribute(attr) || '').toLowerCase()];
       if (to) el.setAttribute(attr, to);
@@ -32,34 +53,15 @@ if (params.has('preview')) document.body.classList.add('preview');
   }
 }
 
-// ---- layout: portrait shows the torso, wide frames just the head ----------
+// Portrait frames show the body; wide ones frame just the head.
 function layout() {
   const wide = innerWidth / innerHeight > 1.2;
-  $('stage').setAttribute('viewBox', wide ? '-71 95 1102 620' : '0 0 960 1280');
-  $('torso').style.display = wide ? 'none' : '';
+  svg.setAttribute('viewBox', wide ? AVATAR.wide : '0 0 960 1280');
+  if ($('torso')) $('torso').style.display = wide ? 'none' : '';
 }
 addEventListener('resize', layout);
 layout();
-
-// ---- mouth: LED equalizer bars ---------------------------------------------
-const BARS = 9;
-const BAR_W = 22;
-const GAP = 12;
-const MOUTH_Y = 500;
-const bars = [];
-{
-  const total = BARS * BAR_W + (BARS - 1) * GAP;
-  const x0 = 480 - total / 2;
-  for (let i = 0; i < BARS; i += 1) {
-    const r = document.createElementNS(NS, 'rect');
-    r.setAttribute('x', x0 + i * (BAR_W + GAP));
-    r.setAttribute('width', BAR_W);
-    r.setAttribute('rx', 8);
-    r.setAttribute('fill', 'url(#bar)');
-    $('mouth').append(r);
-    bars.push({ el: r, h: 8 });
-  }
-}
+AVATAR.init?.({ $, NS });
 
 // ---- level input -------------------------------------------------------------
 let target = 0;
@@ -183,8 +185,6 @@ let lastFrame = performance.now();
 let nextBlink = performance.now() + 2500;
 let blinkStart = -1;
 const BLINK_MS = 150;
-const noise = (t, i) => 0.5 + 0.5 * Math.sin(t * (7 + i * 1.3) + i * 2.1) * Math.sin(t * (3.1 + i * 0.7));
-const setT = (id, v) => $(id).setAttribute('transform', v);
 
 function frame(now) {
   const t = now / 1000;
@@ -207,33 +207,7 @@ function frame(now) {
   const g = gesturePose(now);
   if (L > 0.35 && !frozenGesture) g.nod += L * 3 * Math.sin(t * 7.5);
 
-  // Head: bob, tilt, nod, and a turn that slides the face across the visor.
-  const bob = Math.sin(t * 1.6) * 6 + L * 8 * Math.sin(t * 11);
-  const tilt = Math.sin(t * 0.9) * 1.4 + L * 1.5 * Math.sin(t * 6.3) + g.tilt;
-  setT('head', `translate(0 ${(bob + g.nod - C * 6).toFixed(2)}) rotate(${tilt.toFixed(2)} 480 470)`);
-  const turn = Math.max(-1, Math.min(1, g.turn));
-  setT('face', `translate(${(turn * 34).toFixed(1)} ${(g.nod * 0.4).toFixed(1)})`);
-  setT('earL', `translate(${(turn * 14).toFixed(1)} 0)`);
-  setT('earR', `translate(${(turn * 14).toFixed(1)} 0)`);
-  $('earL').setAttribute('opacity', (1 - Math.max(0, -turn) * 0.5).toFixed(2));
-  $('earR').setAttribute('opacity', (1 - Math.max(0, turn) * 0.5).toFixed(2));
-  setT('torso', `translate(0 ${(bob * 0.35).toFixed(2)})`);
-
-  // Arms: idle sway, gestures, and the cheer (raised high with a wave).
-  const sway = Math.sin(t * 1.1) * 1.5 + L * 5 * Math.sin(t * 4.7);
-  const wave = Math.sin(t * 9) * 10 * C;
-  // In the cheer the elbows bend inward, so the hands end up beside the head.
-  const shL = 2 + sway + g.shL + C * 160 + wave;
-  const shR = -2 - sway + g.shR - C * 160 - wave;
-  const elL = g.elL + C * 25 + Math.sin(t * 9 + 1) * 8 * C;
-  const elR = g.elR - C * 25 - Math.sin(t * 9 + 1) * 8 * C;
-  const lift = g.lift + C * 10;
-  setT('armL', `translate(0 ${(-lift).toFixed(1)}) rotate(${shL.toFixed(2)} 150 880)`);
-  setT('armR', `translate(0 ${(-lift).toFixed(1)}) rotate(${shR.toFixed(2)} 810 880)`);
-  setT('foreL', `rotate(${elL.toFixed(2)} 150 1085)`);
-  setT('foreR', `rotate(${elR.toFixed(2)} 810 1085)`);
-
-  // Eyes: random blinks, a happy squint when loud, wide during the cheer.
+  // Blinks, a happy squint when loud, wide eyes during the cheer.
   if (blinkStart < 0 && now > nextBlink) blinkStart = now;
   let open = 1;
   if (blinkStart >= 0) {
@@ -245,39 +219,40 @@ function frame(now) {
       nextBlink = now + 2200 + Math.random() * 3800;
     }
   }
-  const squint = (1 - L * 0.35) * (1 - C) + C * 1.1;
-  const eyeH = Math.max(6, 80 * open * squint);
-  for (const id of ['eyeL', 'eyeR']) {
-    const e = $(id);
-    e.setAttribute('height', eyeH.toFixed(1));
-    e.setAttribute('y', (400 - eyeH / 2).toFixed(1));
-    e.setAttribute('opacity', (0.75 + L * 0.25).toFixed(2));
-  }
 
-  // Mouth bars: a bell-shaped "spectrum" scaled by the level.
-  bars.forEach((b, i) => {
-    const center = 1 - Math.abs(i - (BARS - 1) / 2) / ((BARS - 1) / 2);
-    const idle = 6 + 3 * Math.sin(t * 2 + i);
-    const talk = L ** 0.6 * (40 + 85 * center) * (0.6 + 0.4 * noise(t, i));
-    const h = Math.max(idle, talk);
-    b.h += (h - b.h) * 0.5;
-    b.el.setAttribute('height', b.h.toFixed(1));
-    b.el.setAttribute('y', (MOUTH_Y - b.h / 2).toFixed(1));
-    b.el.setAttribute('opacity', (0.55 + Math.min(1, b.h / 60) * 0.45).toFixed(2));
-  });
+  // Head: bob, tilt, nod, and a turn that slides the face sideways.
+  const bob = Math.sin(t * 1.6) * 6 + L * 8 * Math.sin(t * 11);
+  // Arms: idle sway, gestures, and the cheer (raised high with a wave). In
+  // the cheer the elbows bend inward, so the hands end up beside the head.
+  const sway = Math.sin(t * 1.1) * 1.5 + L * 5 * Math.sin(t * 4.7);
+  const wave = Math.sin(t * 9) * 10 * C;
+  const pose = {
+    t,
+    L,
+    C,
+    open,
+    squint: (1 - L * 0.35) * (1 - C) + C * 1.1,
+    pulse: 0.5 + 0.5 * Math.sin(t * 2.2),
+    headY: bob + g.nod - C * 6,
+    tilt: Math.sin(t * 0.9) * 1.4 + L * 1.5 * Math.sin(t * 6.3) + g.tilt,
+    turn: Math.max(-1, Math.min(1, g.turn)),
+    nod: g.nod,
+    torsoY: bob * 0.35,
+    shL: 2 + sway + g.shL + C * 160 + wave,
+    shR: -2 - sway + g.shR - C * 160 - wave,
+    elL: g.elL + C * 25 + Math.sin(t * 9 + 1) * 8 * C,
+    elR: g.elR - C * 25 - Math.sin(t * 9 + 1) * 8 * C,
+    lift: g.lift + C * 10,
+  };
 
-  // Glows.
-  const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
-  $('tipHalo').setAttribute('opacity', (0.35 + pulse * 0.2 + L * 0.45 + C * 0.2).toFixed(2));
-  $('tip').setAttribute('r', (18 + L * 6 + C * 6).toFixed(1));
-  $('coreHalo').setAttribute('opacity', (0.35 + pulse * 0.15 + L * 0.5).toFixed(2));
-  $('core').setAttribute('r', (32 + L * 10 + pulse * 2).toFixed(1));
-  for (const c of ['cheekL', 'cheekR']) $(c).setAttribute('opacity', (0.25 + L * 0.6).toFixed(2));
-  document.querySelectorAll('.earLed').forEach((e) => e.setAttribute('opacity', (0.45 + pulse * 0.3 + L * 0.25).toFixed(2)));
-
-  // Scan line sweeping down the visor.
-  const scanY = 300 + ((t * 90) % 260);
-  setT('scan', `translate(0 ${(scanY - 300).toFixed(1)})`);
+  setT('head', `translate(0 ${pose.headY.toFixed(2)}) rotate(${pose.tilt.toFixed(2)} 480 470)`);
+  setT('face', `translate(${(pose.turn * (AVATAR.faceShift ?? 34)).toFixed(1)} ${(pose.nod * 0.4).toFixed(1)})`);
+  setT('torso', `translate(0 ${pose.torsoY.toFixed(2)})`);
+  setT('armL', `translate(0 ${(-pose.lift).toFixed(1)}) rotate(${pose.shL.toFixed(2)} 150 880)`);
+  setT('armR', `translate(0 ${(-pose.lift).toFixed(1)}) rotate(${pose.shR.toFixed(2)} 810 880)`);
+  setT('foreL', `rotate(${pose.elL.toFixed(2)} 150 1085)`);
+  setT('foreR', `rotate(${pose.elR.toFixed(2)} 810 1085)`);
+  AVATAR.apply(pose, { $, setT });
 
   requestAnimationFrame(frame);
 }

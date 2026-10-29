@@ -20,8 +20,8 @@
     sr_screen: { x: 20, y: 170, w: 1040, h: 585, r: 36 },
   };
 
-  // The free-standing robot under the game in "Screen + Robot".
-  const ROBOT_FULL = { x: 0, y: 790, w: W, h: H - 790 };
+  // The free-standing avatar under the game in "Screen + Avatar".
+  const AVATAR_FULL = { x: 0, y: 790, w: W, h: H - 790 };
 
   // Every scene in the order OBS lists them. holes: windows in the frame and
   // what shows through each. text: lines drawn on the frame, centered on y;
@@ -36,7 +36,7 @@
     },
     { name: 'Camera', holes: [hole('camera', 'camera')], text: [handleAt(1570)] },
     { name: 'Screen + Camera', holes: [hole('sc_screen', 'game'), hole('sc_cam', 'camera')], text: [handleAt(1300)] },
-    { name: 'Screen + Robot', robot: true, holes: [hole('sr_screen', 'game')], text: [handleAt(822)] },
+    { name: 'Screen + Avatar', avatar: true, holes: [hole('sr_screen', 'game')], text: [handleAt(822)] },
     { name: 'Screen', holes: [hole('screen', 'game')], text: [handleAt(1240)] },
     { name: 'Be Right Back', holes: [], text: [{ role: 'title', text: 'BE RIGHT BACK', y: 820 }, handleAt(990)] },
     {
@@ -51,5 +51,5 @@
   const frameFile = (sceneName) => `frame-${sceneName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.png`;
   const artFiles = () => [BG_FILE, ...SCENES.map((s) => frameFile(s.name))];
 
-  return { W, H, HOLES, ROBOT_FULL, SCENES, BG_FILE, frameFile, artFiles };
+  return { W, H, HOLES, AVATAR_FULL, SCENES, BG_FILE, frameFile, artFiles };
 });

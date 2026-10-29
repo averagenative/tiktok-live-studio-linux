@@ -5,7 +5,9 @@
 ### Features
 
 - **Scene themes.** **Set up TikTok scenes** opens a picker with five themes (Neon, Synthwave, Arcade, Cozy, and Minimal) that previews all seven scenes with your handle, a game stand-in, and your webcam or the robot before you apply one. Applying another theme later swaps the artwork and keeps your sources and layout.
-- The robot avatar takes on the scene theme's colors.
+- **Animal avatars.** Pick a robot, cat, fox, or panda as your avatar. The animals talk, blink, cheer, and gesture like the robot, and wear streaming headphones and a scarf. Switching avatars updates OBS right away.
+- Every avatar takes on the scene theme's colors.
+- The OBS sources and the scene named after the robot are renamed in place: **Screen + Robot** becomes **Screen + Avatar**, and **Robot**, **Robot (wide)**, and **Robot (full)** become **Avatar**, **Avatar (wide)**, and **Avatar (full)**.
 - Scene text is drawn into the artwork with bundled fonts, so OBS no longer needs Montserrat installed. Setups from 0.1.0 lose their OBS text sources when you apply a theme, because the frames now carry the text.
 
 ## 0.1.0

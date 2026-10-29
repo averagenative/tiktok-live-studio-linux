@@ -9,7 +9,7 @@
 // sources, and a frame image the theme picker drew, text included. Without
 // it (OBS elsewhere), scenes use a plain color and OBS text sources.
 
-const { W, H, HOLES, ROBOT_FULL, SCENES, BG_FILE, frameFile } = require('./scenes/layout');
+const { W, H, HOLES, AVATAR_FULL, SCENES, BG_FILE, frameFile } = require('./scenes/layout');
 
 const PROFILE = 'TikTok Vertical';
 // The window/screen capture. Not "Screen": OBS sources and scenes share one
@@ -27,7 +27,12 @@ const PLAIN_TEXT = {
   Ending: ['Title: Ending 1', 'Title: Ending 2', 'Follow'],
 };
 const TEXT_SOURCES = [...new Set([...Object.values(PLAIN_TEXT).flat(), 'Handle'])];
-const ROBOT_SOURCES = ['Robot (full)', 'Robot', 'Robot (wide)'];
+const AVATAR_SOURCES = ['Avatar (full)', 'Avatar', 'Avatar (wide)'];
+// 0.1.0 only had the robot and named things after it.
+const OLD_SCENE_NAMES = { 'Screen + Robot': 'Screen + Avatar' };
+const OLD_SOURCE_NAMES = {
+  'Robot (full)': 'Avatar (full)', Robot: 'Avatar', 'Robot (wide)': 'Avatar (wide)', 'Frame: Screen + Robot': 'Frame: Screen + Avatar',
+};
 const frameSource = (sceneName) => `Frame: ${sceneName}`;
 
 // obs-browser's default page CSS: transparent background.
@@ -76,15 +81,15 @@ const FULL = { positionX: 0, positionY: 0, alignment: ALIGN_TOP_LEFT };
 const centered = (y) => ({ positionX: W / 2, positionY: y, alignment: ALIGN_CENTER });
 
 // Scene layouts, bottom layer first. Each entry is [sourceName, transform].
-function sceneLayouts({ art, capture, handle, robot = false }) {
+function sceneLayouts({ art, capture, handle, avatar = false }) {
   const layouts = {};
   for (const scene of SCENES) {
-    if (scene.robot && !robot) continue;
+    if (scene.avatar && !avatar) continue;
     const items = [['Background', FULL]];
     if (capture) for (const h of scene.holes) items.push([h.shows === 'game' ? CAPTURE : 'Webcam', slot(h)]);
     if (art) items.push([frameSource(scene.name), FULL]);
     // Above the frame: the frame is opaque outside its game window.
-    if (scene.robot) items.push(['Robot (full)', { positionX: ROBOT_FULL.x, positionY: ROBOT_FULL.y, alignment: ALIGN_TOP_LEFT }]);
+    if (scene.avatar) items.push(['Avatar (full)', { positionX: AVATAR_FULL.x, positionY: AVATAR_FULL.y, alignment: ALIGN_TOP_LEFT }]);
     if (!art) {
       const names = PLAIN_TEXT[scene.name] || ['Handle'];
       scene.text.forEach((line, i) => {
@@ -153,7 +158,8 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
   }
 
   const art = !!assetsDir;
-  const layouts = sceneLayouts({ art, capture, handle: at, robot: !!avatarUrl });
+  await migrateNames(obs, say);
+  const layouts = sceneLayouts({ art, capture, handle: at, avatar: !!avatarUrl });
   const sceneNames = Object.keys(layouts);
   const { scenes: before } = await obs.call('GetSceneList');
   const haveScene = new Set(before.map((x) => x.sceneName));
@@ -171,10 +177,10 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
       ? { kind: 'image_source', settings: { file: file(BG_FILE) } }
       : { kind: 'color_source_v3', settings: { color: abgr('#101218'), width: W, height: H } },
     ...Object.fromEntries(SCENES.map((sc) => [frameSource(sc.name), { kind: 'image_source', settings: { file: file(frameFile(sc.name)) } }])),
-    'Robot (full)': {
+    'Avatar (full)': {
       kind: 'browser_source',
       settings: {
-        url: avatarUrl, width: ROBOT_FULL.w, height: ROBOT_FULL.h, fps: 30, css: BROWSER_CSS,
+        url: avatarUrl, width: AVATAR_FULL.w, height: AVATAR_FULL.h, fps: 30, css: BROWSER_CSS,
         reroute_audio: false, shutdown: false, restart_when_active: false,
       },
     },
@@ -201,7 +207,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
     inputKind.set('Background (old)', 'old');
   }
 
-  // A new theme: point the existing artwork and robots at the new files and
+  // A new theme: point the existing artwork and avatars at the new files and
   // colors. The frames carry the text now, so the old text sources go.
   let updated = 0;
   if (art) {
@@ -216,11 +222,7 @@ async function setupTikTok(obs, { handle = '', assetsDir = null, avatarUrl = nul
       say(`removed "${name}" (the theme's frames carry the text)`);
     }
   }
-  if (avatarUrl) {
-    for (const name of ROBOT_SOURCES.filter((n) => inputKind.has(n))) {
-      await obs.call('SetInputSettings', { inputName: name, inputSettings: { url: avatarUrl } });
-    }
-  }
+  if (avatarUrl) await setAvatarUrl(obs, avatarUrl, { log });
 
   // New collections don't get OBS's global Desktop Audio / Mic, so add our own
   // audio sources to every scene unless the collection already has them.
@@ -405,20 +407,50 @@ async function tuneMic(obs, warnings, say, sourceName) {
   if (added.length) say(`mic "${mic1}": ${added.join(', ')}`);
 }
 
-// ---- robot avatar ------------------------------------------------------------
-// Browser sources showing the app's voice-reactive robot, one per webcam slot,
+// ---- avatar ------------------------------------------------------------------
+// Browser sources showing the app's voice-reactive avatar, one per webcam slot,
 // sized to the slot so the page lays itself out (portrait shows the torso,
 // wide frames the head). Toggling swaps them with the Webcam in those scenes.
-const ROBOT_SLOTS = [
-  { scene: 'Camera', source: 'Robot', hole: HOLES.camera },
-  { scene: 'Screen + Camera', source: 'Robot (wide)', hole: HOLES.sc_cam },
+const AVATAR_SLOTS = [
+  { scene: 'Camera', source: 'Avatar', hole: HOLES.camera },
+  { scene: 'Screen + Camera', source: 'Avatar (wide)', hole: HOLES.sc_cam },
 ];
 
-async function setRobotAvatar(obs, { enabled, url, log = () => {} }) {
-  const say = (m) => log('obs', `robot: ${m}`);
+// Rename what 0.1.0 called the robot, in the current scene collection. Only
+// where the new name is free, so nothing of the user's gets renamed over.
+async function migrateNames(obs, say) {
+  const { scenes = [] } = await obs.call('GetSceneList');
+  const sceneNames = new Set(scenes.map((s) => s.sceneName));
+  for (const [from, to] of Object.entries(OLD_SCENE_NAMES)) {
+    if (!sceneNames.has(from) || sceneNames.has(to)) continue;
+    await obs.call('SetSceneName', { sceneName: from, newSceneName: to });
+    say(`renamed scene "${from}" to "${to}"`);
+  }
+  const { inputs = [] } = await obs.call('GetInputList');
+  const inputNames = new Set(inputs.map((i) => i.inputName));
+  for (const [from, to] of Object.entries(OLD_SOURCE_NAMES)) {
+    if (!inputNames.has(from) || inputNames.has(to)) continue;
+    await obs.call('SetInputName', { inputName: from, newInputName: to });
+    say(`renamed source "${from}" to "${to}"`);
+  }
+}
+
+// Point every avatar source at another avatar or theme color.
+async function setAvatarUrl(obs, url, { log = () => {} } = {}) {
+  await migrateNames(obs, (m) => log('obs', `avatar: ${m}`));
+  const { inputs } = await obs.call('GetInputList');
+  const names = new Set(inputs.map((i) => i.inputName));
+  const present = AVATAR_SOURCES.filter((n) => names.has(n));
+  for (const inputName of present) await obs.call('SetInputSettings', { inputName, inputSettings: { url } });
+  return present;
+}
+
+async function setAvatar(obs, { enabled, url, log = () => {} }) {
+  const say = (m) => log('obs', `avatar: ${m}`);
+  await migrateNames(obs, say);
   const { scenes } = await obs.call('GetSceneList');
   const have = new Set(scenes.map((s) => s.sceneName));
-  const slots = ROBOT_SLOTS.filter((s) => have.has(s.scene));
+  const slots = AVATAR_SLOTS.filter((s) => have.has(s.scene));
   if (!slots.length) throw new Error('No Camera scenes found; run "Set up TikTok scenes" first');
   const { inputs } = await obs.call('GetInputList');
   const exists = new Set(inputs.map((i) => i.inputName));
@@ -456,8 +488,10 @@ async function setRobotAvatar(obs, { enabled, url, log = () => {} }) {
     const cam = sceneItems.find((i) => i.sourceName === 'Webcam');
     if (cam) await obs.call('SetSceneItemEnabled', { sceneName: scene, sceneItemId: cam.sceneItemId, sceneItemEnabled: !enabled });
   }
-  say(enabled ? 'robot on, webcam hidden' : 'webcam on, robot hidden');
+  say(enabled ? 'avatar on, webcam hidden' : 'webcam on, avatar hidden');
   return { scenes: slots.map((s) => s.scene) };
 }
 
-module.exports = { setupTikTok, setRobotAvatar, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, CAPTURE, HOLES, ROBOT_SLOTS, TEXT_SOURCES };
+module.exports = {
+  setupTikTok, setAvatar, setAvatarUrl, tuneMic, sceneLayouts, abgr, PROFILE, COLLECTION, CAPTURE, HOLES, AVATAR_SLOTS, TEXT_SOURCES,
+};
