@@ -2,7 +2,7 @@
 
 **Go LIVE on TikTok from Linux with OBS Studio, without a stream key.** LIVE Studio for Linux is an unofficial, open-source alternative to TikTok LIVE Studio, which TikTok makes for Windows and macOS only. It handles the TikTok side (logging in, creating the LIVE, getting the stream URL, and ending the LIVE) and drives OBS for capture and encoding. It ships as an AppImage for x86_64 Linux.
 
-![LIVE Studio for Linux: the main window with account, OBS, pinned window, and Go LIVE panels](docs/images/app.png)
+![LIVE Studio for Linux: the main window with account, OBS, pinned window, and Go LIVE panels, and a Hide private info button in the top bar](docs/images/app.png)
 
 > **Unofficial and unsupported.** This project is not made by, affiliated with, or endorsed by TikTok or ByteDance. TikTok publishes LIVE Studio for Windows and macOS only. This app talks to TikTok's servers the same way the official LIVE Studio app does, using your own login. TikTok can change or block that at any time, and using a client TikTok didn't make might go against [TikTok's Terms of Service](https://www.tiktok.com/legal/page/us/terms-of-service/en). Your account is your responsibility. There is no warranty and no support. If you need something reliable, use TikTok's official tools.
 
