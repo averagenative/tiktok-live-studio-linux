@@ -10,6 +10,10 @@
 - The OBS sources and the scene named after the robot are renamed in place: **Screen + Robot** becomes **Screen + Avatar**, and **Robot**, **Robot (wide)**, and **Robot (full)** become **Avatar**, **Avatar (wide)**, and **Avatar (full)**.
 - Scene text is drawn into the artwork with bundled fonts, so OBS no longer needs Montserrat installed. Setups from 0.1.0 lose their OBS text sources when you apply a theme, because the frames now carry the text.
 
+### Fixes
+
+- The app reconnects to OBS on its own. Before, it tried once at startup, so opening the app before OBS, or restarting OBS, left it disconnected and the avatar's mouth stopped following your mic. It now retries every 5 seconds until OBS answers, and the OBS panel says it's retrying. A wrong password or **Disconnect** stops the retries.
+
 ## 0.1.0
 
 First release. LIVE Studio for Linux is unofficial and unsupported, and isn't made by, affiliated with, or endorsed by TikTok or ByteDance. It talks to TikTok the way the official LIVE Studio app does, which may break at any time or go against TikTok's terms. Use it at your own risk.

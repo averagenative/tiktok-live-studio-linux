@@ -9,6 +9,11 @@ const { obsAuth } = require('./util');
 const OpCode = { Hello: 0, Identify: 1, Identified: 2, Event: 5, Request: 6, RequestResponse: 7 };
 const EventSubscription = { Outputs: 1 << 6, InputVolumeMeters: 1 << 16 };
 
+// Password problems are flagged so retries can stop: waiting won't fix them.
+function authError(message) {
+  return Object.assign(new Error(message), { auth: true });
+}
+
 class ObsClient extends EventEmitter {
   constructor({ log = () => {} } = {}) {
     super();
@@ -57,8 +62,7 @@ class ObsClient extends EventEmitter {
         for (const { reject: rej } of this.pending.values()) rej(new Error('OBS connection closed'));
         this.pending.clear();
         if (!settled) {
-          const reason = ev.code === 4009 ? 'OBS rejected the WebSocket password' : `OBS closed the connection (code ${ev.code})`;
-          done(new Error(reason));
+          done(ev.code === 4009 ? authError('OBS rejected the WebSocket password') : new Error(`OBS closed the connection (code ${ev.code})`));
         } else if (wasIdentified) {
           this.emit('disconnected', ev.code);
         }
@@ -76,7 +80,7 @@ class ObsClient extends EventEmitter {
             const identify = { rpcVersion: 1, eventSubscriptions: EventSubscription.Outputs | EventSubscription.InputVolumeMeters };
             if (msg.d.authentication) {
               if (!password) {
-                done(new Error('OBS WebSocket needs a password; set it in the OBS panel'));
+                done(authError('OBS WebSocket needs a password; set it in the OBS panel'));
                 return;
               }
               identify.authentication = obsAuth(password, msg.d.authentication.salt, msg.d.authentication.challenge);
@@ -166,4 +170,64 @@ class ObsClient extends EventEmitter {
   }
 }
 
-module.exports = { ObsClient };
+// Keeps the OBS connection up once it's wanted. OBS often starts after the
+// app or restarts mid-session, and without a connection the avatar gets no
+// mic meters. connect() marks the connection wanted and stop() lets it go.
+// Failures retry every retryMs, except a password problem, which stops the
+// retries. Only the first failure in a row is logged.
+function keepObsConnected(obs, { options, retryMs = 5000, onState = () => {}, log = () => {} }) {
+  let wanted = false;
+  let timer = null;
+  let attempt = 0;
+  let failing = false;
+
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+
+  const schedule = () => {
+    cancel();
+    if (!wanted || obs.connected) return;
+    timer = setTimeout(() => {
+      timer = null;
+      if (wanted && !obs.connected) connect().catch(() => {});
+    }, retryMs);
+  };
+
+  async function connect() {
+    wanted = true;
+    cancel();
+    const mine = ++attempt;
+    try {
+      await obs.connect(options());
+    } catch (e) {
+      // A newer attempt replaced this one, and that attempt reports for itself.
+      if (mine !== attempt) throw e;
+      if (!failing) log('obs', e.auth ? e.message : `${e.message} (retrying every ${retryMs / 1000}s)`);
+      failing = true;
+      if (e.auth) wanted = false;
+      else schedule();
+      onState(e.message);
+      throw e;
+    }
+    failing = false;
+    onState('');
+  }
+
+  obs.on('disconnected', schedule);
+
+  return {
+    connect,
+    stop() {
+      wanted = false;
+      attempt += 1;
+      cancel();
+    },
+    get retrying() {
+      return timer !== null;
+    },
+  };
+}
+
+module.exports = { ObsClient, keepObsConnected };

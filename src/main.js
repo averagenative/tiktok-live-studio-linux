@@ -6,7 +6,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { app, BrowserWindow, WebContentsView, ipcMain, session, clipboard, shell, screen, safeStorage } = require('electron');
 const { TikTokApi } = require('./tiktok');
-const { ObsClient } = require('./obs');
+const { ObsClient, keepObsConnected } = require('./obs');
 const { LiveSession } = require('./session');
 const { setupTikTok, setAvatar, setAvatarUrl, PROFILE: OBS_PROFILE } = require('./obs-setup');
 const SceneLayout = require('./scenes/layout');
@@ -145,6 +145,11 @@ const api = new TikTokApi({
   log,
 });
 const obs = new ObsClient({ log });
+const obsLink = keepObsConnected(obs, {
+  options: () => ({ host: settings.obsHost, port: Number(settings.obsPort) || 4455, password: obsPassword() }),
+  onState: (error) => send('obs', obsState(error)),
+  log,
+});
 const live = new LiveSession({ api, obs, log });
 
 live.on('state', (s) => send('session', s));
@@ -164,7 +169,7 @@ obs.on('event', (type, data) => {
 });
 
 function obsState(error = '') {
-  return { connected: obs.connected, version: obs.obsVersion, error };
+  return { connected: obs.connected, version: obs.obsVersion, error, retrying: obsLink.retrying };
 }
 
 async function refreshAccount() {
@@ -354,17 +359,11 @@ ipcMain.handle('account:apply-studio', wrap(async () => {
 }));
 
 ipcMain.handle('obs:connect', wrap(async () => {
-  try {
-    await obs.connect({ host: settings.obsHost, port: Number(settings.obsPort) || 4455, password: obsPassword() });
-    send('obs', obsState());
-    return obsState();
-  } catch (e) {
-    log('obs', e.message);
-    send('obs', obsState(e.message));
-    throw e;
-  }
+  await obsLink.connect();
+  return obsState();
 }));
 ipcMain.handle('obs:disconnect', wrap(async () => {
+  obsLink.stop();
   obs.disconnect();
   send('obs', obsState());
   return obsState();
@@ -864,14 +863,8 @@ app.whenReady().then(async () => {
       app.exit(0);
     }, 12000);
   }
-  if (settings.driveObs) {
-    obs.connect({ host: settings.obsHost, port: Number(settings.obsPort) || 4455, password: obsPassword() })
-      .then(() => send('obs', obsState()))
-      .catch((e) => {
-        log('obs', `auto-connect: ${e.message}`);
-        send('obs', obsState(e.message));
-      });
-  }
+  // Keeps trying until OBS is up, so the app can start first.
+  if (settings.driveObs) obsLink.connect().catch(() => {});
 });
 
 // End the LIVE cleanly before quitting so the room doesn't linger until

@@ -113,7 +113,9 @@ function renderAccount() {
 function renderObs() {
   const o = view.obs;
   $('obs-dot').className = `dot${o.connected ? ' on' : o.error ? ' err' : ''}`;
-  $('obs-status').textContent = o.connected ? `connected (obs-websocket ${o.version})` : o.error ? hideHost(o.error) : 'not connected';
+  const retry = o.retrying ? ' Retrying every few seconds.' : '';
+  $('obs-status').textContent = o.connected ? `connected (obs-websocket ${o.version})`
+    : o.error ? `${hideHost(o.error)}${retry}` : retry ? `not connected.${retry}` : 'not connected';
   show($('obs-connect'), !o.connected);
   show($('obs-disconnect'), o.connected);
   renderLive();
