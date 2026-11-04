@@ -1,20 +1,24 @@
 APP_ID := io.github.averagenative.livestudiolinux
 VERSION = $(shell node -p "require('./package.json').version")
 
-.PHONY: check test lint run appimage release install uninstall hooks
+.PHONY: check test lint config run appimage release install uninstall hooks
 
 check: lint test
 
 lint:
-	@for f in src/*.js src/renderer/*.js src/pin/*.js src/avatar/*.js src/scenes/*.js src/plugins/*.js src/plugins/*/*.js test/*.js; do node --check $$f || exit 1; done
+	@for f in scripts/*.js src/*.js src/renderer/*.js src/pin/*.js src/avatar/*.js src/scenes/*.js src/plugins/*.js src/plugins/*/*.js test/*.js; do node --check $$f || exit 1; done
 
 test:
 	node --test test/*.test.js
 
-run:
+# The Twitch client ID from .env, if any, into the packaged app.
+config:
+	node scripts/gen-config.js
+
+run: config
 	npx electron .
 
-appimage: check
+appimage: check config
 	npx electron-builder --linux AppImage
 
 # Draft GitHub release for the package.json version; DRY_RUN=1 skips GitHub.

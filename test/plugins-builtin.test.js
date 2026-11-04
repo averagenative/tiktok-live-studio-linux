@@ -80,7 +80,9 @@ function setup(t, { obs = fakeObs(), settings = {}, running = false, data = {}, 
   if (tokens) store.s.secrets.twitch = { tokens: JSON.stringify(tokens) };
   const launches = [];
   const plugins = plugin === 'twitch'
-    ? [twitchPlugin.create({ fetch, running: () => running, files, isLocal: async (h) => ['127.0.0.1', '192.168.88.68'].includes(h) })]
+    ? [twitchPlugin.create({
+      fetch, running: () => running, files, isLocal: async (h) => ['127.0.0.1', '192.168.88.68'].includes(h), builtInId: settings.builtInId || '',
+    })]
     : [launchPlugin.create({
       find: () => [{ kind: 'native', label: 'OBS (installed package)', cmd: '/usr/bin/obs', args: [] }],
       running: () => running,
@@ -300,4 +302,17 @@ test('Launch OBS only starts OBS on its own at app start', async (t) => {
   await already.host.start();
   await settle();
   assert.equal(already.launches.length, 0);
+});
+
+test('with a built-in client ID, the panel offers Log in to Twitch right away', async (t) => {
+  const without = setup(t);
+  await without.host.start();
+  await settle();
+  assert.ok(without.item('clientId'), 'asks for a client ID');
+  assert.equal(without.item('login'), null);
+  const withId = setup(t, { settings: { builtInId: 'abc123def456ghi789jkl012mno345' } });
+  await withId.host.start();
+  await settle();
+  assert.equal(withId.item('clientId'), null);
+  assert.ok(withId.item('login'), 'shows Log in to Twitch');
 });

@@ -29,6 +29,8 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 make check
+node scripts/gen-config.js
+[ -f src/plugins/twitch/client-id.json ] || echo "release: no Twitch client ID in .env, so users have to register their own Twitch app"
 rm -f "$APPIMAGE"
 npx electron-builder --linux AppImage
 [ -f "$APPIMAGE" ] || die "expected $APPIMAGE after the build"
