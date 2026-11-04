@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('pinShell', {
   reload: () => ipcRenderer.send('pinshell:reload'),
   size: () => ipcRenderer.invoke('pinshell:size'),
   resize: (width, height) => ipcRenderer.send('pinshell:resize', { width, height }),
+  split: (ratio) => ipcRenderer.send('pinshell:split', ratio),
+  onLayout: (fn) => ipcRenderer.on('pinshell:layout', (_e, layout) => fn(layout || {})),
 });

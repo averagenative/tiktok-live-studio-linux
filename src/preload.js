@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('ls', {
   copy: (what) => call('live:copy', what),
   copyLog: () => call('log:copy'),
   openExternal: (url) => call('open:external', url),
+  setPluginEnabled: (id, enabled) => call('plugins:enable', { id, enabled }),
+  pluginAction: (id, action, value) => call('plugins:action', { id, action, value }),
   fit: (width, height) => ipcRenderer.send('window:fit', { width, height }),
   onLog: on('log'),
   onSession: on('session'),
@@ -42,4 +44,5 @@ contextBridge.exposeInMainWorld('ls', {
   onAccount: on('account'),
   onPin: on('pin'),
   onSetup: on('setup'),
+  onPlugins: on('plugins'),
 });

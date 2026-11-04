@@ -14,6 +14,8 @@ const SceneThemes = require('./scenes/themes');
 const { startAvatarServer, levelFromMeter, pickMic } = require('./avatar-server');
 const { isolateScript, alphaScript, isTikTokLivePage, leavesLivePage, DIAG_SCRIPT } = require('./pin-isolate');
 const { hasSession, extractTopics, apiMessage, idcFromCookies, summarize, studioRequirements, studioApplyUrl, normalizeUrl } = require('./util');
+const { PluginHost } = require('./plugins/host');
+const BUILTIN_PLUGINS = require('./plugins/builtin');
 
 app.setName('LIVE Studio for Linux');
 
@@ -92,30 +94,65 @@ function saveSettings() {
   fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), { mode: 0o600 });
 }
 
-function obsPassword() {
-  if (!settings.obsPasswordEnc) return '';
+// Secrets are encrypted with the desktop keyring when there is one.
+function seal(text) {
+  return safeStorage.isEncryptionAvailable()
+    ? safeStorage.encryptString(text).toString('base64')
+    : Buffer.from(text, 'utf8').toString('base64');
+}
+
+function unseal(b64) {
+  if (!b64) return '';
   try {
-    const buf = Buffer.from(settings.obsPasswordEnc, 'base64');
+    const buf = Buffer.from(b64, 'base64');
     return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
   } catch {
     return '';
   }
 }
 
+function obsPassword() {
+  return unseal(settings.obsPasswordEnc);
+}
+
 function setObsPassword(pw) {
-  if (!pw) {
-    settings.obsPasswordEnc = '';
-    return;
-  }
-  settings.obsPasswordEnc = safeStorage.isEncryptionAvailable()
-    ? safeStorage.encryptString(pw).toString('base64')
-    : Buffer.from(pw, 'utf8').toString('base64');
+  settings.obsPasswordEnc = pw ? seal(pw) : '';
 }
 
 function publicSettings() {
-  const { obsPasswordEnc, ...rest } = settings;
+  const { obsPasswordEnc, plugins, ...rest } = settings;
   return { ...rest, hasObsPassword: !!obsPasswordEnc };
 }
+
+// Plugin state lives in settings.plugins: which are on, each one's data, and
+// its secrets (sealed).
+function pluginSettings() {
+  const p = settings.plugins && typeof settings.plugins === 'object' ? settings.plugins : {};
+  settings.plugins = { enabled: {}, data: {}, secrets: {}, ...p };
+  return settings.plugins;
+}
+
+const pluginStore = {
+  enabled: (id) => pluginSettings().enabled[id],
+  setEnabled(id, on) {
+    pluginSettings().enabled[id] = !!on;
+    saveSettings();
+  },
+  data: (id) => pluginSettings().data[id] || {},
+  setData(id, obj) {
+    pluginSettings().data[id] = obj;
+    saveSettings();
+  },
+  secret: (id, name) => unseal(pluginSettings().secrets[id]?.[name]),
+  setSecret(id, name, value) {
+    const all = pluginSettings().secrets;
+    const mine = { ...(all[id] || {}) };
+    if (value) mine[name] = seal(String(value));
+    else delete mine[name];
+    all[id] = mine;
+    saveSettings();
+  },
+};
 
 // ---- logging / push to renderer ------------------------------------------
 
@@ -145,9 +182,17 @@ const api = new TikTokApi({
   log,
 });
 const obs = new ObsClient({ log });
+// The renderer and the plugins both hear about OBS connection changes.
+let plugins = null;
+function pushObs(error = '') {
+  const state = obsState(error);
+  send('obs', state);
+  plugins?.broadcast('obs', state);
+}
+
 const obsLink = keepObsConnected(obs, {
   options: () => ({ host: settings.obsHost, port: Number(settings.obsPort) || 4455, password: obsPassword() }),
-  onState: (error) => send('obs', obsState(error)),
+  onState: (error) => pushObs(error),
   log,
 });
 const live = new LiveSession({ api, obs, log });
@@ -156,8 +201,38 @@ live.on('state', (s) => send('session', s));
 obs.on('disconnected', (code) => {
   log('obs', `disconnected (code ${code})`);
   avatar?.push(0);
-  send('obs', obsState());
+  pushObs();
 });
+
+// ---- plugins ---------------------------------------------------------------
+
+let pluginsStarting = false;
+plugins = new PluginHost({
+  plugins: BUILTIN_PLUGINS,
+  store: pluginStore,
+  log,
+  deps: {
+    obs,
+    obsConnect: () => obsLink.connect(),
+    obsState: () => obsState(),
+    live,
+    app: {
+      starting: () => pluginsStarting,
+      settings: () => publicSettings(),
+      profileForLive: () => (settings.useTikTokProfile ? OBS_PROFILE : null),
+      async openExternal(url) {
+        if (!/^https:\/\//.test(String(url))) throw new Error('Only https links open outside the app');
+        await shell.openExternal(url);
+      },
+      pin: {
+        setExtra: (extra) => setPinExtra(extra),
+        open: () => showPin(),
+        state: () => pinState(),
+      },
+    },
+  },
+});
+plugins.on('change', (snap) => send('plugins', snap));
 
 // The avatar's mouth follows the mic level from OBS's own meters.
 let avatar = null;
@@ -317,6 +392,7 @@ ipcMain.handle('state:get', wrap(async () => ({
   session: live.snapshot(),
   logs,
   account: accountState(),
+  plugins: plugins.snapshot(),
   versions: { app: app.getVersion(), electron: process.versions.electron },
 })));
 
@@ -325,7 +401,14 @@ ipcMain.handle('settings:set', wrap(async (patch) => {
   for (const k of allowed) if (k in patch) settings[k] = patch[k];
   if ('obsPassword' in patch) setObsPassword(patch.obsPassword);
   saveSettings();
+  plugins.broadcast('settings', publicSettings());
   return publicSettings();
+}));
+
+ipcMain.handle('plugins:enable', wrap(async ({ id, enabled } = {}) => plugins.setEnabled(String(id), !!enabled)));
+ipcMain.handle('plugins:action', wrap(async ({ id, action, value } = {}) => {
+  await plugins.action(String(id), String(action), value);
+  return true;
 }));
 
 ipcMain.handle('auth:login', wrap(async () => openLogin()));
@@ -513,11 +596,21 @@ ipcMain.handle('avatar:preview', wrap(async () => {
 // panel-only TikTok page can sit over the game on a see-through backing.
 
 const PIN_BAR = 28;
+const PIN_GAP = 6;
 let pinWin = null;
 let pinView = null;
 let saveBoundsTimer = null;
+// A second pane a plugin can add under the TikTok page (Twitch chat), or show
+// instead of it: { url, partition, mode: 'split' | 'only' }. The TikTok page
+// loads only once it's shown, so "only" mode doesn't run it in the background.
+let pinExtra = null;
+let pinView2 = null;
+let pinPageUrl = '';
+let pinPageLoaded = false;
 
 const pinAlive = () => !!(pinWin && !pinWin.isDestroyed() && pinView && !pinView.webContents.isDestroyed());
+const extraAlive = () => !!(pinView2 && !pinView2.webContents.isDestroyed());
+const pinSplit = () => Math.min(0.85, Math.max(0.15, Number(settings.pinSplit ?? 0.5)));
 const pinAlpha = () => Math.min(1, Math.max(0, Number(settings.pinBgAlpha ?? 0.6)));
 
 // On TikTok LIVE pages, show just the viewers/comments panel. The page
@@ -554,6 +647,7 @@ function pinState() {
     bgAlpha: pinAlpha(),
     clickThrough: settings.pinClickThrough,
     selfPin: X11,
+    extra: pinExtra?.mode || null,
   };
 }
 
@@ -565,7 +659,138 @@ function applyPinLook() {
 function layoutPinView() {
   if (!pinAlive()) return;
   const [w, h] = pinWin.getContentSize();
-  pinView.setBounds({ x: 0, y: PIN_BAR, width: w, height: Math.max(0, h - PIN_BAR) });
+  const area = Math.max(0, h - PIN_BAR);
+  const mode = extraAlive() ? pinExtra?.mode : null;
+  let divider = null;
+  if (mode === 'only') {
+    pinView.setVisible(false);
+    pinView2.setVisible(true);
+    pinView2.setBounds({ x: 0, y: PIN_BAR, width: w, height: area });
+  } else if (mode === 'split') {
+    // The gap between the panes shows the shell's divider, which drags.
+    const top = Math.round(Math.max(0, area - PIN_GAP) * pinSplit());
+    pinView.setVisible(true);
+    pinView2.setVisible(true);
+    pinView.setBounds({ x: 0, y: PIN_BAR, width: w, height: top });
+    pinView2.setBounds({ x: 0, y: PIN_BAR + top + PIN_GAP, width: w, height: Math.max(0, area - top - PIN_GAP) });
+    divider = { y: PIN_BAR + top, height: PIN_GAP };
+  } else {
+    pinView.setVisible(true);
+    pinView.setBounds({ x: 0, y: PIN_BAR, width: w, height: area });
+  }
+  if (mode !== 'only' && !pinPageLoaded && pinPageUrl) {
+    pinPageLoaded = true;
+    pinView.webContents.loadURL(pinPageUrl);
+  }
+  pinWin.webContents.send('pinshell:layout', { divider });
+}
+
+// Loads the TikTok page now, or when it's next shown.
+function loadPinPage(url) {
+  pinPageUrl = url;
+  pinPageLoaded = false;
+  layoutPinView();
+}
+
+function closeExtraPane() {
+  if (!pinView2) return;
+  const view = pinView2;
+  pinView2 = null;
+  if (pinWin && !pinWin.isDestroyed()) pinWin.contentView.removeChildView(view);
+  if (!view.webContents.isDestroyed()) view.webContents.close();
+}
+
+// Creates, swaps, or drops the extra pane to match pinExtra.
+function applyPinExtra() {
+  if (!pinAlive()) return;
+  if (!pinExtra) {
+    closeExtraPane();
+  } else {
+    if (extraAlive() && pinView2.lslPartition !== pinExtra.partition) closeExtraPane();
+    if (!extraAlive()) {
+      const { partition } = pinExtra;
+      pinView2 = new WebContentsView({
+        webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true },
+      });
+      pinView2.lslPartition = partition;
+      pinView2.lslUrl = '';
+      pinView2.lslCss = null;
+      pinView2.setBackgroundColor('#00000000');
+      pinWin.contentView.addChildView(pinView2);
+      const wc = pinView2.webContents;
+      wc.setAudioMuted(true);
+      // Each page load starts without the plugin's styles.
+      wc.on('dom-ready', () => {
+        if (pinView2?.webContents === wc) pinView2.lslCss = null;
+        styleExtraPane();
+      });
+      wc.setUserAgent(BROWSER_UA);
+      // Logins (like Twitch's) open as ordinary windows in the same session.
+      wc.setWindowOpenHandler(({ url }) => (/^https:\/\//.test(url)
+        ? { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true } } }
+        : { action: 'deny' }));
+    }
+    if (pinView2.lslUrl !== pinExtra.url) {
+      pinView2.lslUrl = pinExtra.url;
+      pinView2.webContents.loadURL(pinExtra.url);
+    } else {
+      styleExtraPane();
+    }
+  }
+  layoutPinView();
+}
+
+// The plugin's see-through styles for its pane, and the Panel background
+// setting they read (--lsl-alpha, as on the TikTok pane).
+async function styleExtraPane() {
+  if (!extraAlive()) return;
+  const view = pinView2;
+  const wc = view.webContents;
+  const css = pinExtra?.css || '';
+  if (view.lslCss?.css !== css) {
+    // Recorded before awaiting, so overlapping calls insert it once.
+    const old = view.lslCss;
+    const entry = { css, key: '' };
+    view.lslCss = entry;
+    if (old?.key) wc.removeInsertedCSS(old.key).catch(() => {});
+    // As user styles, its !important rules win over the page's own.
+    if (css) entry.key = await wc.insertCSS(css, { cssOrigin: 'user' }).catch(() => '');
+  }
+  wc.executeJavaScript(alphaScript(pinAlpha()), true).catch(() => {});
+}
+
+function setPinExtra(extra) {
+  let next = null;
+  if (extra) {
+    const url = normalizeUrl(extra.url);
+    const partition = String(extra.partition || '');
+    // Plugin pages get their own session, never TikTok's.
+    if (!url || !/^persist:[a-z0-9-]+$/.test(partition) || partition === PARTITION) throw new Error('Bad pinned pane');
+    const css = typeof extra.css === 'string' ? extra.css.slice(0, 8000) : '';
+    next = { url, partition, mode: extra.mode === 'only' ? 'only' : 'split', css };
+  }
+  if (JSON.stringify(next) === JSON.stringify(pinExtra)) return;
+  pinExtra = next;
+  applyPinExtra();
+  send('pin', pinState());
+}
+
+// For plugins: show the pinned window, opening it on the saved page.
+function showPin() {
+  if (pinAlive()) {
+    pinWin.showInactive();
+    return pinState();
+  }
+  if (pinExtra?.mode === 'only') {
+    createPinWindow();
+    if (settings.pinUrl) loadPinPage(settings.pinUrl);
+    log('app', `pinned window: ${new URL(pinExtra.url).host}`);
+    return pinState();
+  }
+  const handle = account?.username;
+  const url = settings.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
+  if (!url) throw new Error('Enter a web page for the pinned window first');
+  return openPin(url);
 }
 
 // Pages the pinned window links to (like the Viewers gear's Moderator
@@ -599,10 +824,18 @@ function openPin(rawUrl) {
   settings.pinUrl = url;
   saveSettings();
   if (pinAlive()) {
-    pinView.webContents.loadURL(url);
+    loadPinPage(url);
     pinWin.showInactive();
     return pinState();
   }
+  createPinWindow();
+  loadPinPage(url);
+  log('app', `pinned window: ${new URL(url).host}`);
+  return pinState();
+}
+
+// The pinned window, its shell, and the (not yet loaded) TikTok pane.
+function createPinWindow() {
   const b = settings.pinBounds || {};
   pinWin = new BrowserWindow({
     width: b.width || 380,
@@ -662,17 +895,20 @@ function openPin(rawUrl) {
   pinWin.on('move', remember);
   pinWin.on('close', () => {
     if (pinView && !pinView.webContents.isDestroyed()) pinView.webContents.close();
+    closeExtraPane();
   });
   pinWin.on('closed', () => {
     pinView = null;
+    pinView2 = null;
     pinWin = null;
+    pinPageUrl = '';
+    pinPageLoaded = false;
     send('pin', pinState());
   });
-  layoutPinView();
+  // The shell draws the divider once it's loaded, so lay out again then.
+  pinWin.webContents.on('did-finish-load', layoutPinView);
+  applyPinExtra();
   applyPinLook();
-  wc.loadURL(url);
-  log('app', `pinned window: ${new URL(url).host}`);
-  return pinState();
 }
 
 ipcMain.handle('pin:open', wrap(async (url) => openPin(url)));
@@ -687,6 +923,7 @@ ipcMain.handle('pin:set', wrap(async ({ clickThrough, panelOnly, bgAlpha } = {})
     if (pinAlive() && settings.pinPanelOnly) {
       pinView.webContents.executeJavaScript(alphaScript(pinAlpha()), true).catch(() => {});
     }
+    styleExtraPane();
   }
   if (panelOnly !== undefined && !!panelOnly !== settings.pinPanelOnly) {
     settings.pinPanelOnly = !!panelOnly;
@@ -707,7 +944,18 @@ ipcMain.on('pinshell:close', (e) => {
   if (fromPinShell(e)) pinWin.close();
 });
 ipcMain.on('pinshell:reload', (e) => {
-  if (fromPinShell(e) && pinAlive()) pinView.webContents.reload();
+  if (!fromPinShell(e) || !pinAlive()) return;
+  if (pinPageLoaded) pinView.webContents.reload();
+  if (extraAlive()) pinView2.webContents.reload();
+});
+// Dragging the divider between the TikTok and plugin panes.
+let saveSplitTimer = null;
+ipcMain.on('pinshell:split', (e, ratio) => {
+  if (!fromPinShell(e) || !Number.isFinite(Number(ratio))) return;
+  settings.pinSplit = Math.min(0.85, Math.max(0.15, Number(ratio)));
+  layoutPinView();
+  clearTimeout(saveSplitTimer);
+  saveSplitTimer = setTimeout(saveSettings, 500);
 });
 ipcMain.handle('pinshell:size', (e) => (fromPinShell(e) ? pinWin.getSize() : [0, 0]));
 ipcMain.on('pinshell:resize', (e, { width, height } = {}) => {
@@ -865,6 +1113,10 @@ app.whenReady().then(async () => {
   }
   // Keeps trying until OBS is up, so the app can start first.
   if (settings.driveObs) obsLink.connect().catch(() => {});
+  pluginsStarting = true;
+  plugins.start()
+    .catch((e) => log('error', `plugins: ${e.message}`))
+    .finally(() => { pluginsStarting = false; });
 });
 
 // End the LIVE cleanly before quitting so the room doesn't linger until
@@ -877,6 +1129,10 @@ app.on('before-quit', (e) => {
     quitting = true;
     live.endLive().finally(() => app.quit());
   }
+});
+
+app.on('will-quit', () => {
+  plugins.stop().catch(() => {});
 });
 
 app.on('window-all-closed', () => app.quit());

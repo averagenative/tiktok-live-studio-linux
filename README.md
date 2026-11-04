@@ -22,6 +22,7 @@ Version 0.1.0 has gone LIVE end to end with a real account: log in, create the r
 - Can replace your webcam with a voice-reactive avatar: a robot, a cat, a fox, or a panda.
 - Opens a pinned window that keeps a web page, such as your LIVE page's viewers and comments panel, on top of your game.
 - Hides your account, OBS address, and stream details with one click, for when you share your whole screen.
+- Comes with two built-in plugins: **Launch OBS** starts OBS for you, and **Twitch** streams to Twitch along with your TikTok LIVE, sets the Twitch title, and puts Twitch chat in the pinned window.
 
 OBS does all of the capture, scenes, and encoding. This app handles the TikTok side.
 
@@ -173,8 +174,64 @@ If you share your whole screen, click **Hide private info** in the top bar befor
 - Shows the OBS host and port, and the pinned window's web address, as dots.
 - Hides the RTMP server, stream key, and room ID. **Copy** still copies them.
 - Hides the log. **Copy log** still copies all of it.
+- Shows your Twitch login, Twitch channel, and Twitch login code as dots.
 
 The setting stays on until you click the button again, including after you restart the app. It covers this app's main window only. TikTok's own pages, like the login window, show what they always show, so log in before you start sharing your screen.
+
+## Plugins
+
+The **Plugins** panel lists the extras built into the app. Turn one on to add its panel. Only plugins that ship with the app run. There's no folder for other plugins, because the app holds your TikTok session and your OBS password.
+
+### Launch OBS
+
+**Launch OBS** is on by default. Its **Launch OBS** button starts OBS and connects to it after its WebSocket server answers. It finds the packaged `obs` first, then the Flatpak (`com.obsproject.Studio`), and lets you pick when you have both. You can also choose to:
+
+- Open the **TikTok Vertical** profile and scenes.
+- Start OBS minimized to the tray.
+- Launch OBS when LIVE Studio for Linux starts.
+
+OBS starts with your desktop's environment, without the library paths the AppImage sets for itself, and keeps running after you quit the app.
+
+### Stream to Twitch at the same time
+
+The **Twitch** plugin sends your LIVE to Twitch too. OBS sends the second stream through the [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp) OBS plugin, and this app sets that plugin up for you.
+
+1. Install obs-multi-rtmp in OBS. Fedora doesn't package it. Download the Ubuntu 26.04 `.deb` from the plugin's releases page, and extract it with `ar x` and `tar`. Copy `obs-multi-rtmp.so` to `~/.config/obs-studio/plugins/obs-multi-rtmp/bin/64bit/` and the `locale` folder to `~/.config/obs-studio/plugins/obs-multi-rtmp/data/`. For the Flatpak OBS, install the plugin's `.flatpak` file. Then restart OBS.
+2. In the **Plugins** panel, turn on **Twitch**.
+3. Click **Get my stream key**, copy your key from the Twitch dashboard, and paste it into **Twitch stream key**.
+4. Go LIVE as usual. Twitch starts and stops with your TikTok stream.
+
+To skip Twitch for a LIVE, clear **Also stream to Twitch when I go LIVE**. While OBS streams, the panel shows whether Twitch is streaming, reconnecting, or dropping frames, and its bitrate.
+
+Things to know:
+
+- **Twitch gets its own encoder.** Twitch wants a keyframe every 2 seconds. The **TikTok Vertical** profile uses OBS's Simple output mode, which leaves NVENC at a keyframe every 250 frames (about 8 seconds at 30 fps). Twitch would get the same if it shared OBS's encoder. NVENC runs a second encode with little extra load.
+- **Twitch gets the same portrait picture.** Viewers on a computer see bars at the sides.
+- **You upload both streams.** At 6000 kbps each, plan for at least 13 Mbps of upload.
+- **The key lives in OBS.** The app writes it to `obs-multi-rtmp.json` in the OBS profile you go LIVE with, which is where the OBS plugin keeps it. OBS writes its own copy of that file when it closes, so the app has OBS reload the profile after each change. For the same reason, the app won't change the file while OBS streams, or while OBS is open but not connected to the app.
+- **OBS on another computer.** If OBS runs on another computer, set the key there in OBS, under **Docks > Multiple output**.
+
+### Twitch title and category
+
+After you log in to Twitch, the app sets your Twitch title to your TikTok title when you go LIVE, along with a category you pick. If you leave the TikTok title blank, your Twitch title stays as it is. Nothing changes on Twitch for a LIVE that doesn't go to Twitch.
+
+Logging in needs a Twitch app client ID:
+
+1. In the [Twitch developer console](https://dev.twitch.tv/console/apps/create), register an application with the category **Application Integration**, the client type **Public**, and the OAuth redirect URL `https://localhost`. The app logs in with a code instead of a redirect, so it never uses that URL. Twitch requires two-factor authentication on your account to register an application.
+2. Paste its client ID into **Twitch app client ID**.
+3. Click **Log in to Twitch**. Your browser opens twitch.tv/activate with a code filled in. Check that it matches the code in the app, then allow access.
+
+The app asks Twitch only for permission to manage your broadcast settings (`channel:manage:broadcast`). It stores the login with Electron `safeStorage`, and checks it with Twitch at startup and every hour, as Twitch requires.
+
+### Twitch chat in the pinned window
+
+Click **Open Twitch chat** to add your Twitch chat to the pinned window, under the TikTok comments. **Twitch chat in the pinned window** picks the layout:
+
+- **Off**: the pinned window shows only the TikTok comments.
+- **Under the TikTok comments**: both chats in one window, TikTok on top. Drag the line between them to resize.
+- **Instead of the TikTok comments**: just your Twitch chat.
+
+The chat comes from your Twitch login, or from **Twitch channel** if you aren't logged in. Twitch chat runs in its own session, separate from TikTok's. To chat as yourself, log in to Twitch inside the chat pane. Like the TikTok pane, it's muted.
 
 ## Optional OBS extras
 
@@ -210,6 +267,7 @@ The official LIVE Studio uses Electron only for its interface. Capture, effects,
 - It stores the OBS WebSocket password with Electron `safeStorage`, which uses your desktop keyring (libsecret) when one is available.
 - It doesn't forge request signatures, register a fake device, or work around TikTok's anti-abuse systems. It sends the same plain requests the official app's JavaScript builds, with `device_id=0`, which the official app also falls back to. If TikTok starts requiring signatures for these endpoints, this app stops working.
 - The pinned window only changes how a page is displayed. It doesn't read the page's content.
+- With the **Twitch** plugin on, your Twitch stream key is saved in OBS's `obs-multi-rtmp.json`, readable only by you, and your Twitch login is stored with `safeStorage`. **Log out of Twitch** revokes the login.
 - It sends no telemetry.
 
 For the request details, see [docs/PROTOCOL.md](docs/PROTOCOL.md).
@@ -234,6 +292,8 @@ The code is plain CommonJS with no build step:
 | `src/scenes/` | Scene themes: layout, theme data, the artwork renderer, the picker window, and the bundled fonts |
 | `src/avatar-server.js`, `src/avatar/` | Local server and page for the avatars: `engine.js` animates them, and `avatars/` has one file per avatar |
 | `src/pin-isolate.js`, `src/pin/` | Pinned window panel-only view and its shell |
+| `src/plugins/` | Built-in plugins: `host.js` runs them, `launch-obs/` and `twitch/` are the plugins, and `obs-process.js` finds and starts OBS |
+| `src/renderer/plugins.js` | Draws the plugin panels from the plain data the plugins send, so plugin code never runs in the app window |
 | `src/util.js` | Pure helpers shared by the rest |
 | `src/renderer/` | The app's UI |
 
