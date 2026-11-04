@@ -3,3 +3,5 @@ dist/
 *.AppImage
 tmp/
 .env
+# Written from .env by scripts/gen-config.js at build time.
+src/plugins/twitch/client-id.json

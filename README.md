@@ -215,11 +215,12 @@ Things to know:
 
 After you log in to Twitch, the app sets your Twitch title to your TikTok title when you go LIVE, along with a category you pick. If you leave the TikTok title blank, your Twitch title stays as it is. Nothing changes on Twitch for a LIVE that doesn't go to Twitch.
 
-Logging in needs a Twitch app client ID:
+To log in, click **Log in to Twitch**. Your browser opens twitch.tv/activate with a code filled in. Check that it matches the code in the app, then allow access.
+
+Release AppImages include this project's Twitch app. If you build from source without one, the panel asks for a Twitch app client ID instead:
 
 1. In the [Twitch developer console](https://dev.twitch.tv/console/apps/create), register an application with the category **Application Integration**, the client type **Public**, and the OAuth redirect URL `https://localhost`. The app logs in with a code instead of a redirect, so it never uses that URL. Twitch requires two-factor authentication on your account to register an application.
-2. Paste its client ID into **Twitch app client ID**.
-3. Click **Log in to Twitch**. Your browser opens twitch.tv/activate with a code filled in. Check that it matches the code in the app, then allow access.
+2. Paste its client ID into **Twitch app client ID**, or put `clientid=<client ID>` in a `.env` file in the project folder before you build, to build it in.
 
 The app asks Twitch only for permission to manage your broadcast settings (`channel:manage:broadcast`). It stores the login with Electron `safeStorage`, and checks it with Twitch at startup and every hour, as Twitch requires.
 
@@ -276,6 +277,7 @@ For the request details, see [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 - `make check` runs a syntax check and the unit tests (`node --test`).
 - `make hooks` sets `core.hooksPath` to `.githooks`, so `git push` runs `make check` first.
+- `make run`, `make appimage`, and `make release` first run `scripts/gen-config.js`, which builds in the Twitch client ID from `clientid=` in `.env` (or the `TWITCH_CLIENT_ID` environment variable). Both `.env` and the file it writes, `src/plugins/twitch/client-id.json`, are git-ignored.
 - `make release` builds the AppImage, writes `SHA256SUMS`, and creates or updates a draft GitHub release for the version in `package.json`, with notes from that version's section of `CHANGELOG.md`. Publish the draft on GitHub when it's ready. `make release DRY_RUN=1` builds without touching GitHub.
 - `scripts/obs-sandbox.sh` starts a throwaway OBS on a virtual display (Xvfb) with its own config and an unauthenticated obs-websocket on port 4466, for testing the OBS automation without touching your real OBS.
 - Dev environment variables: `LSL_CAPTURE=<file>` saves a screenshot of the main window and quits (`LSL_THEME` picks the theme); `LSL_PIN_TEST=<url>` with `LSL_CAPTURE=<dir>` does the same for the pinned window; `LSL_SCENES_TEST=<dir>` does the same for the **Scene themes** window, and with `LSL_SCENES_APPLY=<theme>` applies that theme to OBS first; `LSL_NO_CAPTURE=1` leaves out the webcam and game capture, for the OBS sandbox; `LSL_AVATAR_PORT` moves the avatar server; `LSL_X11=1` runs through XWayland. Pass `--user-data-dir=<dir>` to keep test runs away from your own settings and login.

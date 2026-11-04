@@ -16,9 +16,18 @@ const { TwitchApi } = require('./api');
 const rtmp = require('./multi-rtmp');
 const { obsRunning, isThisComputer } = require('../obs-process');
 
-// The project's registered Twitch app (client type Public). Empty means each
-// user registers their own and pastes its client ID into the card.
-const TWITCH_CLIENT_ID = '';
+// The project's registered Twitch app (client type Public), written at build
+// time from .env by scripts/gen-config.js. Without it, each user registers
+// their own app and pastes its client ID into the card.
+function builtInClientId() {
+  try {
+    const id = String(require('./client-id.json').clientId || '');
+    return /^[a-z0-9]{20,40}$/i.test(id) ? id : '';
+  } catch {
+    return '';
+  }
+}
+const TWITCH_CLIENT_ID = builtInClientId();
 
 // 'tiktok' means no Twitch chat: the pinned window shows only TikTok's comments.
 const CHAT_MODES = [
@@ -62,7 +71,9 @@ div:has(> * [class*="channelLeaderboard"]), [class*="channelLeaderboard"] {
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 3px; }
 `;
 
-function create({ fetch = (...a) => globalThis.fetch(...a), running = obsRunning, files = rtmp, isLocal = isThisComputer } = {}) {
+function create({
+  fetch = (...a) => globalThis.fetch(...a), running = obsRunning, files = rtmp, isLocal = isThisComputer, builtInId = TWITCH_CLIENT_ID,
+} = {}) {
   return {
     id: 'twitch',
     name: 'Twitch',
@@ -73,7 +84,7 @@ function create({ fetch = (...a) => globalThis.fetch(...a), running = obsRunning
       const opts = () => ({
         chatMode: 'tiktok', channel: '', syncTitle: true, categoryId: '', categoryName: '', clientId: '', ...ctx.data.get(),
       });
-      const clientId = () => opts().clientId || TWITCH_CLIENT_ID;
+      const clientId = () => opts().clientId || builtInId;
       const tokens = () => {
         try {
           return JSON.parse(ctx.secrets.get('tokens') || 'null');
