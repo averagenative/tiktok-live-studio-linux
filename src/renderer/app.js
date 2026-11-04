@@ -10,6 +10,7 @@ const view = {
   account: { loggedIn: false },
 };
 let tick = null;
+let pluginUi = null;
 
 // "Hide private info" swaps account names, addresses, and stream details for
 // placeholders (masked inputs and the hidden log are done in style.css).
@@ -121,8 +122,15 @@ function renderObs() {
   renderLive();
 }
 
+// Panel background applies to the TikTok panel-only view and to a plugin's
+// chat pane (like Twitch chat), so it shows when either is in use.
+function renderAlphaRow() {
+  show($('pin-alpha-row'), view.settings.pinPanelOnly !== false || !!view.pin?.extra);
+}
+
 function renderPin(p) {
   view.pin = p || view.pin || { open: false };
+  renderAlphaRow();
   document.querySelectorAll('.x11-only').forEach((el) => show(el, !!view.pin.selfPin));
   if (view.pin.selfPin) {
     $('pin-hint').textContent = 'The window keeps itself on top. With click-through on, clicks go to the game underneath; '
@@ -148,7 +156,7 @@ function renderSettings() {
   $('pin-click').checked = !!s.pinClickThrough;
   $('pin-panel').checked = s.pinPanelOnly !== false;
   $('pin-alpha').value = Math.round((s.pinBgAlpha ?? 0.6) * 100);
-  show($('pin-alpha-row'), s.pinPanelOnly !== false);
+  renderAlphaRow();
   if (!$('pin-url').value) {
     const handle = view.account?.account?.username;
     $('pin-url').value = s.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
@@ -243,6 +251,7 @@ function wire() {
     renderPrivacy();
     renderAccount();
     renderObs();
+    pluginUi.render();
     await saveSetting({ privacy: view.settings.privacy });
   }));
   $('login').addEventListener('click', (e) => act(e.target, () => api.login()));
@@ -291,7 +300,7 @@ function wire() {
   }));
   $('pin-panel').addEventListener('change', (e) => act(null, async () => {
     view.settings = { ...view.settings, pinPanelOnly: e.target.checked };
-    show($('pin-alpha-row'), e.target.checked);
+    renderAlphaRow();
     renderPin(await api.pinSet({ panelOnly: e.target.checked }));
   }));
   $('pin-click').addEventListener('change', (e) => act(null, async () => {
@@ -334,6 +343,7 @@ function wire() {
     if (!$('pin-url').value && a.account?.username) $('pin-url').value = `https://www.tiktok.com/@${a.account.username}/live`;
   });
   api.onPin(renderPin);
+  api.onPlugins((snap) => pluginUi.render(snap));
   api.onSetup((r) => {
     const el = $('setup-status');
     const what = r.created ? `Created the TikTok Vertical profile and scenes with the ${r.themeName} theme.`
@@ -345,6 +355,13 @@ function wire() {
 }
 
 async function init() {
+  pluginUi = createPluginUi({
+    api,
+    list: $('plugin-list'),
+    before: $('live-card'),
+    isPrivate,
+    onError: (e) => addLog({ t: Date.now(), kind: 'error', message: e.message }),
+  });
   wire();
   const st = await api.getState();
   view.settings = st.settings;
@@ -356,6 +373,7 @@ async function init() {
   renderAccount();
   renderObs();
   renderLive();
+  pluginUi.render(st.plugins);
   for (const l of st.logs) addLog(l);
   $('footer').textContent = `v${st.versions.app} · Electron ${st.versions.electron} · not affiliated with TikTok`;
   watchContentSize();

@@ -304,3 +304,44 @@ footer { padding: 0 20px 16px; }
 
 .robot-row { margin-top: 4px; }
 .robot-row label.check { margin-top: 0; }
+
+/* Plugins: the list, and the cards plugins describe (renderer/plugins.js). */
+.status.warn { color: var(--warn); }
+.plugin-list { display: grid; gap: 12px; margin-top: 12px; }
+.plugin-item { flex-direction: row; align-items: flex-start; gap: 10px; color: var(--text); font-size: 13px; }
+.plugin-item > input { margin-top: 1px; flex: none; }
+.plugin-item .desc { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+.plugin-item .desc.err { color: var(--err); }
+.plugin-body { display: flex; flex-direction: column; }
+.plugin-card.wide .plugin-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.plugin-group { display: flex; flex-direction: column; min-width: 0; }
+.plugin-body > label:not(.check), .plugin-group > label:not(.check) { margin-top: 10px; }
+.plugin-body > .row:first-child, .plugin-group > .row:first-child { margin-top: 0; }
+h3.plugin-heading {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.plugin-card .row > label:not(.check) { flex: 1 1 140px; min-width: 0; }
+.plugin-card .row > label + button { align-self: flex-end; }
+.plugin-card .status.small { margin-top: 10px; }
+.plugin-code {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 8px 14px;
+  font-family: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  font-size: 22px;
+  letter-spacing: .18em;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  user-select: all;
+}
