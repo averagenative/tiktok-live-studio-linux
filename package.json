@@ -1,6 +1,6 @@
 {
   "name": "tiktok-live-studio-linux",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Unofficial, unsupported Linux client for going LIVE on TikTok through OBS",
   "main": "src/main.js",
   "desktopName": "io.github.averagenative.livestudiolinux.desktop",
