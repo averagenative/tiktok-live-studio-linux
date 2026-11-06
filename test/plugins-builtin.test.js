@@ -263,10 +263,18 @@ test('the chat layout drives the pinned window pane', async (t) => {
   assert.equal(s.pinCalls.filter(([k]) => k === 'extra').at(-1)[1].mode, 'split');
   assert.deepEqual(s.pinCalls.at(-1), ['show']);
   assert.equal(s.item('chatMode').value, 'split');
+  // Open TikTok chat drops the Twitch pane and shows just the TikTok comments.
+  await s.host.action('twitch', 'openTikTokChat');
+  assert.equal(s.pinCalls.filter(([k]) => k === 'extra').at(-1)[1], null);
+  assert.deepEqual(s.pinCalls.at(-1), ['show']);
+  assert.equal(s.item('chatMode').value, 'tiktok');
   await assert.rejects(s.host.action('twitch', 'channel', 'not a name!'), /channel name/);
   await s.host.action('twitch', 'channel', '');
   await assert.rejects(s.host.action('twitch', 'openChat'), /enter your Twitch channel first/);
   assert.equal(s.item('openChat').disabled, true);
+  assert.equal(s.item('openTikTokChat').disabled, undefined, 'TikTok chat needs no Twitch channel');
+  await s.host.action('twitch', 'openTikTokChat');
+  assert.deepEqual(s.pinCalls.at(-1), ['show']);
   await s.host.setEnabled('twitch', false);
   assert.equal(s.pinCalls.at(-1)[1], null, 'turning the plugin off removes its pane');
 });

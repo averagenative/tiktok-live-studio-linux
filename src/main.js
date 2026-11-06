@@ -777,18 +777,21 @@ function setPinExtra(extra) {
 
 // For plugins: show the pinned window, opening it on the saved page.
 function showPin() {
+  const handle = account?.username;
+  const url = settings.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
   if (pinAlive()) {
+    // Opened on the plugin's pane alone, it may not have a TikTok page yet.
+    if (!pinPageUrl && url) loadPinPage(url);
+    else if (!pinPageUrl && pinExtra?.mode !== 'only') throw new Error('Enter a web page for the pinned window first');
     pinWin.showInactive();
     return pinState();
   }
   if (pinExtra?.mode === 'only') {
     createPinWindow();
-    if (settings.pinUrl) loadPinPage(settings.pinUrl);
+    if (url) loadPinPage(url);
     log('app', `pinned window: ${new URL(pinExtra.url).host}`);
     return pinState();
   }
-  const handle = account?.username;
-  const url = settings.pinUrl || (handle ? `https://www.tiktok.com/@${handle}/live` : '');
   if (!url) throw new Error('Enter a web page for the pinned window first');
   return openPin(url);
 }

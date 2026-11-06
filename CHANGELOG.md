@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Open TikTok chat** in the Twitch panel opens the pinned window with just your TikTok comments, without Twitch chat.
+
+### Fixes
+
+- The pinned window loads your TikTok LIVE page when you switch from Twitch chat only to TikTok comments, even if you never opened the pinned window with a web page before. Before, the TikTok pane stayed blank.
+
 ## 0.2.0
 
 ### Features

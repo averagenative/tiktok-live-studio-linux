@@ -232,6 +232,8 @@ Click **Open Twitch chat** to add your Twitch chat to the pinned window, under t
 - **Under the TikTok comments**: both chats in one window, TikTok on top. Drag the line between them to resize.
 - **Instead of the TikTok comments**: just your Twitch chat.
 
+To see just your TikTok comments, click **Open TikTok chat**. It sets **Twitch chat in the pinned window** to **Off** and opens the pinned window. Click **Open Twitch chat** to bring Twitch chat back.
+
 The chat comes from your Twitch login, or from **Twitch channel** if you aren't logged in. Twitch chat runs in its own session, separate from TikTok's. To chat as yourself, log in to Twitch inside the chat pane. Like the TikTok pane, it's muted.
 
 ## Optional OBS extras

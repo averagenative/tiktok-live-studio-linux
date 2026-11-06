@@ -10,7 +10,7 @@
 // - Title and category: log in to Twitch (device code), then the TikTok title
 //   and a chosen category go to Twitch when the LIVE starts.
 // - Chat: the pinned window can show Twitch chat under the TikTok comments,
-//   or on its own.
+//   or on its own, or just the TikTok comments.
 
 const { TwitchApi } = require('./api');
 const rtmp = require('./multi-rtmp');
@@ -420,7 +420,13 @@ function create({
         if (!t?.login) {
           chat.push({ type: 'input', id: 'channel', label: 'Twitch channel', value: o.channel, placeholder: 'your Twitch username', private: true });
         }
-        chat.push({ type: 'row', items: [{ type: 'button', id: 'openChat', label: 'Open Twitch chat', style: 'primary', disabled: !channel() }] });
+        chat.push({
+          type: 'row',
+          items: [
+            { type: 'button', id: 'openChat', label: 'Open Twitch chat', style: 'primary', disabled: !channel() },
+            { type: 'button', id: 'openTikTokChat', label: 'Open TikTok chat' },
+          ],
+        });
         chat.push({
           type: 'text', small: true,
           text: !channel() ? 'Log in to Twitch or enter your Twitch channel to show its chat.'
@@ -538,6 +544,12 @@ function create({
               if (!channel()) throw new Error('Log in to Twitch or enter your Twitch channel first.');
               // With Twitch chat off, the button turns it on under the TikTok comments.
               if (opts().chatMode === 'tiktok') ctx.data.set({ chatMode: 'split' });
+              applyChat();
+              await ctx.app.pin.open();
+              break;
+            case 'openTikTokChat':
+              // Just the TikTok comments: turns Twitch chat off in the pinned window.
+              ctx.data.set({ chatMode: 'tiktok' });
               applyChat();
               await ctx.app.pin.open();
               break;
